@@ -21,6 +21,7 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           size_t size) {
   size_t to_buffer = size, from_buffer = size;
   size_t remaining;
+  float *old_head = buf.head;
 
   hw.ProcessDigitalControls();
 
@@ -34,8 +35,11 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
   buf.head += 2 * to_buffer;
 
   if (hw.button1.Pressed()) {
+    buf.tail = 0;
     memset(out, 0, 2 * size * sizeof(*out));
   } else {
+    if (!buf.tail)
+      buf.tail = old_head;
     if (remaining = (buf.end - buf.tail) / 2, from_buffer > remaining) {
       memcpy(out, buf.tail, 2 * remaining * sizeof(*out));
       from_buffer -= remaining;
