@@ -7,10 +7,12 @@ DaisyPod hw;
 
 #define nelem(x) (sizeof(x) / sizeof(*x))
 
-float DSY_SDRAM_BSS buffer[30 * 48000 * 2]; /* 30s at 48kHz */
+typedef float frame[2];
+
+frame DSY_SDRAM_BSS buffer[10 * 48000]; /* 30s at 48kHz */
 
 struct {
-  float *start, *end, *write, *read;
+  frame *start, *end, *write, *read;
 } buf = {buffer, buffer + nelem(buffer), buffer, buffer};
 
 /* Daisy audio is 2 channels in, 2 channels out. An audio frame is 2 floats (one
@@ -20,37 +22,37 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           AudioHandle::InterleavingOutputBuffer out,
                           size_t size) {
   size_t n, remaining;
-  float *old_write = buf.write;
+  frame *old_write = buf.write;
 
   hw.ProcessDigitalControls();
 
   n = size;
-  remaining = (buf.end - buf.write) / 2;
+  remaining = (buf.end - buf.write);
   if (n > remaining) {
-    memcpy(buf.write, in, 2 * remaining * sizeof(*in));
+    memcpy(buf.write, in, remaining * sizeof(frame));
     n -= remaining;
-    in += 2 * remaining;
+    in += remaining;
     buf.write = buf.start;
   }
-  memcpy(buf.write, in, 2 * n * sizeof(*in));
-  buf.write += 2 * n;
+  memcpy(buf.write, in, n * sizeof(frame));
+  buf.write += n;
 
   if (hw.button1.RisingEdge() || hw.button1.FallingEdge())
     buf.read = old_write;
 
   if (hw.button1.Pressed()) {
-    memset(out, 0, 2 * size * sizeof(*out));
+    memset(out, 0, size * sizeof(frame));
   } else {
     n = size;
-    remaining = (buf.end - buf.read) / 2;
+    remaining = (buf.end - buf.read);
     if (n > remaining) {
-      memcpy(out, buf.read, 2 * remaining * sizeof(*out));
+      memcpy(out, buf.read, remaining * sizeof(frame));
       n -= remaining;
-      out += 2 * remaining;
+      out += remaining;
       buf.read = buf.start;
     }
-    memcpy(out, buf.read, 2 * n * sizeof(*out));
-    buf.read += 2 * n;
+    memcpy(out, buf.read, n * sizeof(frame));
+    buf.read += n;
   }
 }
 
