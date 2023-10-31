@@ -41,7 +41,11 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
     buf.read = old_write;
 
   if (hw.button1.Pressed()) {
-    memset(out, 0, size * sizeof(frame));
+    for (n = size; n--; out += 2) {
+      if (--buf.read < buf.start)
+        buf.read = buf.end - 1;
+      memcpy(out, buf.read, sizeof(frame));
+    }
   } else {
     n = size;
     remaining = (buf.end - buf.read);
