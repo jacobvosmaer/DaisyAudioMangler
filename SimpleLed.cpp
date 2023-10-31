@@ -1,4 +1,5 @@
 #include "daisy_pod.h"
+#include <string.h>
 
 using namespace daisy;
 
@@ -8,10 +9,7 @@ Parameter p_knob1, p_knob2;
 static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           AudioHandle::InterleavingOutputBuffer out,
                           size_t size) {
-  for (; size--; in++, out++) {
-    out[0] = in[0];
-    out[1] = in[1];
-  }
+  memcpy(out, in, size * sizeof(*in) * 2);
 }
 
 int main(void) {
