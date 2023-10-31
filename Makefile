@@ -1,8 +1,8 @@
 # Project Name
-TARGET = SimpleLed
+TARGET = Mangler
 
 # Sources
-CPP_SOURCES = SimpleLed.cpp
+CPP_SOURCES = Mangler.cpp
 
 # Library Locations
 LIBDAISY_DIR = ./libDaisy
