@@ -10,8 +10,8 @@ DaisyPod hw;
 float DSY_SDRAM_BSS buffer[30 * 48000 * 2]; /* 30s at 48kHz */
 
 struct {
-  float *buffer, *head, *tail, *end;
-} buf = {buffer, buffer, buffer, buffer + nelem(buffer)};
+  float *start, *end, *head, *tail;
+} buf = {buffer, buffer + nelem(buffer), buffer, buffer};
 
 /* Daisy audio is 2 channels in, 2 channels out. An audio frame is 2 floats (one
  * for each channel). The in and out buffers are float*. Size is the number of
@@ -19,20 +19,21 @@ struct {
 static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           AudioHandle::InterleavingOutputBuffer out,
                           size_t size) {
-  size_t to_buffer = size, from_buffer = size;
-  size_t remaining;
+  size_t n, remaining;
   float *old_head = buf.head;
 
   hw.ProcessDigitalControls();
 
-  if (remaining = (buf.end - buf.head) / 2, to_buffer > remaining) {
+  n = size;
+  remaining = (buf.end - buf.head) / 2;
+  if (n > remaining) {
     memcpy(buf.head, in, 2 * remaining * sizeof(*in));
-    to_buffer -= remaining;
+    n -= remaining;
     in += 2 * remaining;
-    buf.head = buf.buffer;
+    buf.head = buf.start;
   }
-  memcpy(buf.head, in, 2 * to_buffer * sizeof(*in));
-  buf.head += 2 * to_buffer;
+  memcpy(buf.head, in, 2 * n * sizeof(*in));
+  buf.head += 2 * n;
 
   if (hw.button1.Pressed()) {
     buf.tail = 0;
@@ -40,14 +41,16 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
   } else {
     if (!buf.tail)
       buf.tail = old_head;
-    if (remaining = (buf.end - buf.tail) / 2, from_buffer > remaining) {
+    n = size;
+    remaining = (buf.end - buf.tail) / 2;
+    if (n > remaining) {
       memcpy(out, buf.tail, 2 * remaining * sizeof(*out));
-      from_buffer -= remaining;
+      n -= remaining;
       out += 2 * remaining;
-      buf.tail = buf.buffer;
+      buf.tail = buf.start;
     }
-    memcpy(out, buf.tail, 2 * from_buffer * sizeof(*out));
-    buf.tail += 2 * from_buffer;
+    memcpy(out, buf.tail, 2 * n * sizeof(*out));
+    buf.tail += 2 * n;
   }
 }
 
