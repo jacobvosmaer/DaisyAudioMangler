@@ -8,7 +8,7 @@ Parameter p_knob1, p_knob2;
 
 #define nelem(x) (sizeof(x) / sizeof(x[0]))
 
-float DSY_SDRAM_BSS buf[(64 * 1024 * 1024) / sizeof(float)];
+float DSY_SDRAM_BSS buf[30*48000*2]; /* 30s at 48kHz */
 float *buf_head = buf, *buf_tail = buf, *buf_end = buf + nelem(buf);
 
 /* Daisy audio is 2 channels in, 2 channels out. An audio frame is 2 floats (one
@@ -17,18 +17,26 @@ float *buf_head = buf, *buf_tail = buf, *buf_end = buf + nelem(buf);
 static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           AudioHandle::InterleavingOutputBuffer out,
                           size_t size) {
-  size_t to_buffer = size;
-  size_t remaining = buf_end - buf_head;
-  if (to_buffer > remaining / 2) {
+  size_t to_buffer = size, from_buffer = size;
+  size_t remaining;
+
+  if (remaining = buf_end - buf_head, to_buffer > remaining / 2) {
     memcpy(buf_head, in, remaining * sizeof(*in));
     to_buffer -= remaining / 2;
     in += remaining;
     buf_head = buf;
   }
+  memcpy(buf_head, in, 2 * to_buffer * sizeof(*in));
+  buf_head += 2 * to_buffer;
 
-  memcpy(buf_head, in, to_buffer * sizeof(*in) * 2);
-
-  memcpy(out, in, size * sizeof(*in) * 2);
+  if (remaining = buf_end - buf_tail, from_buffer > remaining / 2) {
+    memcpy(out, buf_tail, remaining * sizeof(*out));
+    from_buffer -= remaining / 2;
+    out += remaining;
+    buf_tail = buf;
+  }
+  memcpy(out, buf_tail, 2 * from_buffer * sizeof(*out));
+  buf_tail += 2 * from_buffer;
 }
 
 int main(void) {
