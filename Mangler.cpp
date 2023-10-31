@@ -6,12 +6,13 @@ using namespace daisy;
 DaisyPod hw;
 Parameter p_knob1, p_knob2;
 
-#define BUFFER_SIZE (30 * 48000 * 2) /* 30s at 48kHz */
-float DSY_SDRAM_BSS buffer[BUFFER_SIZE];
+#define nelem(x)(sizeof(x)/sizeof(*x))
+
+float DSY_SDRAM_BSS buffer[30 * 48000 * 2]; /* 30s at 48kHz */
 
 struct {
   float *buffer, *head, *tail, *end;
-} buf = {buffer, buffer, buffer, buffer + BUFFER_SIZE};
+} buf = {buffer, buffer, buffer, buffer + nelem(buffer)};
 
 /* Daisy audio is 2 channels in, 2 channels out. An audio frame is 2 floats (one
  * for each channel). The in and out buffers are float*. Size is the number of
