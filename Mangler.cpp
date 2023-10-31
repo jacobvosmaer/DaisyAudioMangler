@@ -44,7 +44,8 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
     for (n = size; n--; out += 2) {
       if (--buf.read < buf.start)
         buf.read = buf.end - 1;
-      memcpy(out, buf.read, sizeof(frame));
+      out[0] = *buf.read[0];
+      out[1] = *buf.read[1];
     }
   } else {
     n = size;
