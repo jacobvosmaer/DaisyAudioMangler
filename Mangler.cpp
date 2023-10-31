@@ -10,7 +10,7 @@ DaisyPod hw;
 float DSY_SDRAM_BSS buffer[30 * 48000 * 2]; /* 30s at 48kHz */
 
 struct {
-  float *start, *end, *head, *tail;
+  float *start, *end, *write, *read;
 } buf = {buffer, buffer + nelem(buffer), buffer, buffer};
 
 /* Daisy audio is 2 channels in, 2 channels out. An audio frame is 2 floats (one
@@ -20,37 +20,37 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           AudioHandle::InterleavingOutputBuffer out,
                           size_t size) {
   size_t n, remaining;
-  float *old_head = buf.head;
+  float *old_write = buf.write;
 
   hw.ProcessDigitalControls();
 
   n = size;
-  remaining = (buf.end - buf.head) / 2;
+  remaining = (buf.end - buf.write) / 2;
   if (n > remaining) {
-    memcpy(buf.head, in, 2 * remaining * sizeof(*in));
+    memcpy(buf.write, in, 2 * remaining * sizeof(*in));
     n -= remaining;
     in += 2 * remaining;
-    buf.head = buf.start;
+    buf.write = buf.start;
   }
-  memcpy(buf.head, in, 2 * n * sizeof(*in));
-  buf.head += 2 * n;
+  memcpy(buf.write, in, 2 * n * sizeof(*in));
+  buf.write += 2 * n;
 
   if (hw.button1.RisingEdge() || hw.button1.FallingEdge())
-    buf.tail = old_head;
+    buf.read = old_write;
 
   if (hw.button1.Pressed()) {
     memset(out, 0, 2 * size * sizeof(*out));
   } else {
     n = size;
-    remaining = (buf.end - buf.tail) / 2;
+    remaining = (buf.end - buf.read) / 2;
     if (n > remaining) {
-      memcpy(out, buf.tail, 2 * remaining * sizeof(*out));
+      memcpy(out, buf.read, 2 * remaining * sizeof(*out));
       n -= remaining;
       out += 2 * remaining;
-      buf.tail = buf.start;
+      buf.read = buf.start;
     }
-    memcpy(out, buf.tail, 2 * n * sizeof(*out));
-    buf.tail += 2 * n;
+    memcpy(out, buf.read, 2 * n * sizeof(*out));
+    buf.read += 2 * n;
   }
 }
 
