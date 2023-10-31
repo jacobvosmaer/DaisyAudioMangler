@@ -6,7 +6,8 @@ CPP_SOURCES = Mangler.cpp
 
 # Library Locations
 LIBDAISY_DIR = ./libDaisy
-#DAISYSP_DIR = ./DaisySP
+
+CFLAGS = -Werror -pedantic
 
 # Core location, and generic Makefile.
 SYSTEM_FILES_DIR = $(LIBDAISY_DIR)/core
