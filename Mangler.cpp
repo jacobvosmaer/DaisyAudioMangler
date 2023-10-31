@@ -6,10 +6,12 @@ using namespace daisy;
 DaisyPod hw;
 Parameter p_knob1, p_knob2;
 
-#define nelem(x) (sizeof(x) / sizeof(x[0]))
+#define BUFFER_SIZE (30 * 48000 * 2) /* 30s at 48kHz */
+float DSY_SDRAM_BSS buffer[BUFFER_SIZE];
 
-float DSY_SDRAM_BSS buf[30*48000*2]; /* 30s at 48kHz */
-float *buf_head = buf, *buf_tail = buf, *buf_end = buf + nelem(buf);
+struct {
+  float *buffer, *head, *tail, *end;
+} buf = {buffer, buffer, buffer, buffer + BUFFER_SIZE};
 
 /* Daisy audio is 2 channels in, 2 channels out. An audio frame is 2 floats (one
  * for each channel). The in and out buffers are float*. Size is the number of
@@ -20,23 +22,23 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
   size_t to_buffer = size, from_buffer = size;
   size_t remaining;
 
-  if (remaining = buf_end - buf_head, to_buffer > remaining / 2) {
-    memcpy(buf_head, in, remaining * sizeof(*in));
+  if (remaining = buf.end - buf.head, to_buffer > remaining / 2) {
+    memcpy(buf.head, in, remaining * sizeof(*in));
     to_buffer -= remaining / 2;
     in += remaining;
-    buf_head = buf;
+    buf.head = buf.buffer;
   }
-  memcpy(buf_head, in, 2 * to_buffer * sizeof(*in));
-  buf_head += 2 * to_buffer;
+  memcpy(buf.head, in, 2 * to_buffer * sizeof(*in));
+  buf.head += 2 * to_buffer;
 
-  if (remaining = buf_end - buf_tail, from_buffer > remaining / 2) {
-    memcpy(out, buf_tail, remaining * sizeof(*out));
+  if (remaining = buf.end - buf.tail, from_buffer > remaining / 2) {
+    memcpy(out, buf.tail, remaining * sizeof(*out));
     from_buffer -= remaining / 2;
     out += remaining;
-    buf_tail = buf;
+    buf.tail = buf.buffer;
   }
-  memcpy(out, buf_tail, 2 * from_buffer * sizeof(*out));
-  buf_tail += 2 * from_buffer;
+  memcpy(out, buf.tail, 2 * from_buffer * sizeof(*out));
+  buf.tail += 2 * from_buffer;
 }
 
 int main(void) {
