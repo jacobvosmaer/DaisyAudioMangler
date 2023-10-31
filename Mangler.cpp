@@ -35,12 +35,12 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
   memcpy(buf.head, in, 2 * n * sizeof(*in));
   buf.head += 2 * n;
 
+  if (hw.button1.RisingEdge() || hw.button1.FallingEdge())
+    buf.tail = old_head;
+
   if (hw.button1.Pressed()) {
-    buf.tail = 0;
     memset(out, 0, 2 * size * sizeof(*out));
   } else {
-    if (!buf.tail)
-      buf.tail = old_head;
     n = size;
     remaining = (buf.end - buf.tail) / 2;
     if (n > remaining) {
