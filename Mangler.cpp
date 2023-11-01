@@ -53,7 +53,7 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
   float *old_write = buf.write;
 
   copyRing(buf.start, buf.end, (void **)&buf.write, in, in + size, 0, size,
-           sizeof(float));
+           sizeof(*in));
 
   hw.ProcessDigitalControls();
   if (hw.button1.FallingEdge())
@@ -69,7 +69,7 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
     }
   } else {
     copyRing(out, out + size, 0, buf.start, buf.end, (const void **)&buf.read,
-             size, sizeof(float));
+             size, sizeof(*out));
   }
 }
 
