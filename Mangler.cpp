@@ -51,15 +51,12 @@ void copyRing(void *dstStart, void *dstEnd, void **dstPos, const void *srcStart,
   }
 }
 
-/* Daisy audio is 2 channels in, 2 channels out. An audio frame is 2 floats (one
- * for each channel). The in and out buffers are float*. Size is the number of
- * incoming frames, so in points to size*2 floats. */
 static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           AudioHandle::InterleavingOutputBuffer out,
                           size_t size) {
   frame *old_write = buf.write;
 
-  copyRing(buf.start, buf.end, (void **)&buf.write, in, in + 2 * size, 0, size,
+  copyRing(buf.start, buf.end, (void **)&buf.write, in, in + size, 0, size,
            sizeof(frame));
 
   hw.ProcessDigitalControls();
@@ -70,14 +67,12 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
     for (; size--; out += 2) {
       if (--buf.read < buf.start)
         buf.read = buf.end - 1;
-      out[0] = buf.read->s0 / 2.0f;
-      out[1] = buf.read->s1 / 2.0f;
-      /*      if (++buf.read == buf.end)
-              buf.read = buf.start;*/
+      out[0] = buf.read->s0;
+      out[1] = buf.read->s1;
     }
   } else {
-    copyRing(out, out + 2 * size, 0, buf.start, buf.end,
-             (const void **)&buf.read, size, sizeof(frame));
+    copyRing(out, out + size, 0, buf.start, buf.end, (const void **)&buf.read,
+             size, sizeof(frame));
   }
 }
 
