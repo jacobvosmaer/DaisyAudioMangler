@@ -54,6 +54,10 @@ void buf_decr_read(void) {
     buf.read = buf.end - 2;
 }
 
+float combine(float ratio, float x0, float x1) {
+  return ratio * x0 + (1.0 - ratio) * x1;
+}
+
 static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           AudioHandle::InterleavingOutputBuffer out,
                           size_t size) {
@@ -72,16 +76,16 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
 
   if (hw.button1.Pressed()) { /* reverse mode active */
     for (size_t i = 0; i < size; i += 2) {
+      /* This does not look correct to me. I think the while loop needs to
+       * update prev_sample? */
       float prev_sample[2] = {buf.read[0], buf.read[1]};
       buf.read_frac += buf.speed;
       while (buf.read_frac > 1.0) {
         buf_decr_read();
         buf.read_frac -= 1.0;
       }
-      out[i] =
-          buf.read_frac * buf.read[0] + (1.0 - buf.read_frac) * prev_sample[0];
-      out[i + 1] =
-          buf.read_frac * buf.read[1] + (1.0 - buf.read_frac) * prev_sample[1];
+      out[i] = combine(buf.read_frac, buf.read[0], prev_sample[0]);
+      out[i + 1] = combine(buf.read_frac, buf.read[1], prev_sample[1]);
     }
   } else { /* normal forward playback */
     copyRing(out, out + size, 0, buf.start, buf.end, (const void **)&buf.read,
