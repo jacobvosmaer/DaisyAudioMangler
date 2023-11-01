@@ -57,28 +57,28 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
   frame *old_write = buf.write;
 
   copyRing(buf.start, buf.end, (void **)&buf.write, in, in + size, 0, size,
-           sizeof(frame));
+           sizeof(float));
 
   hw.ProcessDigitalControls();
   if (hw.button1.FallingEdge())
     buf.read = old_write;
 
   if (hw.button1.Pressed()) {
-    for (; size--; out += 2) {
+    for (size_t i = 0; i < size; i += 2) {
       if (--buf.read < buf.start)
         buf.read = buf.end - 1;
-      out[0] = buf.read->s0;
-      out[1] = buf.read->s1;
+      out[i] = buf.read->s0;
+      out[i + 1] = buf.read->s1;
     }
   } else {
     copyRing(out, out + size, 0, buf.start, buf.end, (const void **)&buf.read,
-             size, sizeof(frame));
+             size, sizeof(float));
   }
 }
 
 int main(void) {
   hw.Init();
-  hw.SetAudioBlockSize(16);
+  hw.SetAudioBlockSize(4);
   hw.StartAudio(AudioCallback);
 
   while (1)
