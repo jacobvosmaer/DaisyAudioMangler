@@ -17,7 +17,8 @@ float DSY_SDRAM_BSS buffer[2 * (1 + 10 * 48000)]; /* 10s at 48kHz */
 
 struct {
   float *start, *end, *write, *read;
-} buf = {buffer, buffer + nelem(buffer), buffer, buffer};
+  float speed, read_frac;
+} buf = {buffer, buffer + nelem(buffer), buffer, buffer, 0.8, 0};
 
 void copyRing(void *dstStart, void *dstEnd, void **dstPos, const void *srcStart,
               const void *srcEnd, const void **srcPos, size_t nElem,
@@ -47,6 +48,12 @@ void copyRing(void *dstStart, void *dstEnd, void **dstPos, const void *srcStart,
   }
 }
 
+void buf_decr_read(void) {
+  buf.read -= 2;
+  if (buf.read < buf.start)
+    buf.read = buf.end - 2;
+}
+
 static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           AudioHandle::InterleavingOutputBuffer out,
                           size_t size) {
@@ -56,18 +63,25 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
            sizeof(*in));
 
   hw.ProcessDigitalControls();
-  if (hw.button1.RisingEdge()) /* start of reverse playback */
+  if (hw.button1.RisingEdge()) { /* start of reverse playback */
     buf.read = buf.write;
-  else if (hw.button1.FallingEdge()) /* return to forward playback */
+    buf_decr_read();
+  } else if (hw.button1.FallingEdge()) { /* return to forward playback */
     buf.read = old_write;
+  }
 
   if (hw.button1.Pressed()) { /* reverse mode active */
     for (size_t i = 0; i < size; i += 2) {
-      buf.read -= 2;
-      if (buf.read < buf.start)
-        buf.read = buf.end - 2;
-      out[i] = buf.read[0];
-      out[i + 1] = buf.read[1];
+      float prev_sample[2] = {buf.read[0], buf.read[1]};
+      buf.read_frac += buf.speed;
+      while (buf.read_frac > 1.0) {
+        buf_decr_read();
+        buf.read_frac -= 1.0;
+      }
+      out[i] =
+          buf.read_frac * buf.read[0] + (1.0 - buf.read_frac) * prev_sample[0];
+      out[i + 1] =
+          buf.read_frac * buf.read[1] + (1.0 - buf.read_frac) * prev_sample[1];
     }
   } else { /* normal forward playback */
     copyRing(out, out + size, 0, buf.start, buf.end, (const void **)&buf.read,
