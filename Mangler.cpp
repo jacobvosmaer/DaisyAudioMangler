@@ -23,11 +23,11 @@ void copyRing(void *dstStart, void *dstEnd, void **dstPos, const void *srcStart,
               const void *srcEnd, const void **srcPos, size_t nElem,
               size_t elemSize) {
   struct {
-    char *start, *end;
-  } dst = {(char *)dstStart, (char *)dstEnd},
-    src = {(char *)srcStart, (char *)srcEnd};
-  char **dPos = dstPos ? (char **)dstPos : (char **)&dstStart,
-       **sPos = srcPos ? (char **)srcPos : (char **)&srcStart;
+    char *start, *end, **pos;
+  } dst = {(char *)dstStart, (char *)dstEnd,
+           dstPos ? (char **)dstPos : (char **)&dstStart},
+    src = {(char *)srcStart, (char *)srcEnd,
+           srcPos ? (char **)srcPos : (char **)&srcStart};
   ptrdiff_t nBytes;
 
   if (!nElem || !elemSize)
@@ -36,13 +36,13 @@ void copyRing(void *dstStart, void *dstEnd, void **dstPos, const void *srcStart,
   assert(nElem < PTRDIFF_MAX / elemSize);
   nBytes = nElem * elemSize;
 
-  assert(src.start <= *sPos && *sPos <= src.end);
-  assert(dst.start <= *dPos && *dPos <= dst.end);
+  assert(src.start <= *src.pos && *src.pos <= src.end);
+  assert(dst.start <= *dst.pos && *dst.pos <= dst.end);
   while (nBytes) {
-    ptrdiff_t chunk = min(nBytes, min(src.end - *sPos, dst.end - *dPos));
-    memmove(*dPos, *sPos, chunk);
-    *dPos = *dPos + chunk == dst.end ? dst.start : *dPos + chunk;
-    *sPos = *sPos + chunk == src.end ? src.start : *sPos + chunk;
+    ptrdiff_t chunk = min(nBytes, min(src.end - *src.pos, dst.end - *dst.pos));
+    memmove(*dst.pos, *src.pos, chunk);
+    *dst.pos = *dst.pos + chunk == dst.end ? dst.start : *dst.pos + chunk;
+    *src.pos = *src.pos + chunk == src.end ? src.start : *src.pos + chunk;
     nBytes -= chunk;
   }
 }
