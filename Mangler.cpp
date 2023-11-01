@@ -56,10 +56,12 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
            sizeof(*in));
 
   hw.ProcessDigitalControls();
-  if (hw.button1.FallingEdge())
+  if (hw.button1.RisingEdge()) /* start of reverse playback */
+    buf.read = buf.write;
+  else if (hw.button1.FallingEdge()) /* return to forward playback */
     buf.read = old_write;
 
-  if (hw.button1.Pressed()) {
+  if (hw.button1.Pressed()) { /* reverse mode active */
     for (size_t i = 0; i < size; i += 2) {
       buf.read -= 2;
       if (buf.read < buf.start)
@@ -67,7 +69,7 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
       out[i] = buf.read[0];
       out[i + 1] = buf.read[1];
     }
-  } else {
+  } else { /* normal forward playback */
     copyRing(out, out + size, 0, buf.start, buf.end, (const void **)&buf.read,
              size, sizeof(*out));
   }
