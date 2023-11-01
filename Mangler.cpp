@@ -32,19 +32,18 @@ void copyRing(void *dstStart, void *dstEnd, void **dstPos, const void *srcStart,
     src = {(char *)srcStart, (char *)srcEnd};
   char **dPos = dstPos ? (char **)dstPos : (char **)&dstStart,
        **sPos = srcPos ? (char **)srcPos : (char **)&srcStart;
-  size_t nBytes;
+  ptrdiff_t nBytes;
 
   if (!nElem || !elemSize)
     return;
 
-  assert(nElem < INT_MAX / elemSize);
+  assert(nElem < PTRDIFF_MAX / elemSize);
   nBytes = nElem * elemSize;
 
   assert(src.start <= *sPos && *sPos <= src.end);
   assert(dst.start <= *dPos && *dPos <= dst.end);
   while (nBytes) {
-    size_t chunk =
-        min((ptrdiff_t)nBytes, min(src.end - *sPos, dst.end - *dPos));
+    ptrdiff_t chunk = min(nBytes, min(src.end - *sPos, dst.end - *dPos));
     memmove(*dPos, *sPos, chunk);
     *dPos = *dPos + chunk == dst.end ? dst.start : *dPos + chunk;
     *sPos = *sPos + chunk == src.end ? src.start : *sPos + chunk;
