@@ -25,9 +25,9 @@ void copyRing(void *dstStart, void *dstEnd, void **dstPos, const void *srcStart,
   struct {
     char *start, *end, **pos;
   } dst = {(char *)dstStart, (char *)dstEnd,
-           dstPos ? (char **)dstPos : (char **)&dstStart},
+           (char **)(dstPos ? dstPos : &dstStart)},
     src = {(char *)srcStart, (char *)srcEnd,
-           srcPos ? (char **)srcPos : (char **)&srcStart};
+           (char **)(srcPos ? srcPos : &srcStart)};
   ptrdiff_t nBytes;
 
   if (!nElem || !elemSize)
