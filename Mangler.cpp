@@ -13,14 +13,10 @@ DaisyPod hw;
   if (!(x))                                                                    \
   __builtin_trap()
 
-typedef struct {
-  float s0, s1;
-} frame;
-
-frame DSY_SDRAM_BSS buffer[1 + 10 * 48000]; /* 10s at 48kHz */
+float DSY_SDRAM_BSS buffer[2 * (1 + 10 * 48000)]; /* 10s at 48kHz */
 
 struct {
-  frame *start, *end, *write, *read;
+  float *start, *end, *write, *read;
 } buf = {buffer, buffer + nelem(buffer), buffer, buffer};
 
 void copyRing(void *dstStart, void *dstEnd, void **dstPos, const void *srcStart,
@@ -54,7 +50,7 @@ void copyRing(void *dstStart, void *dstEnd, void **dstPos, const void *srcStart,
 static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           AudioHandle::InterleavingOutputBuffer out,
                           size_t size) {
-  frame *old_write = buf.write;
+  float *old_write = buf.write;
 
   copyRing(buf.start, buf.end, (void **)&buf.write, in, in + size, 0, size,
            sizeof(float));
@@ -65,10 +61,11 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
 
   if (hw.button1.Pressed()) {
     for (size_t i = 0; i < size; i += 2) {
-      if (--buf.read < buf.start)
-        buf.read = buf.end - 1;
-      out[i] = buf.read->s0;
-      out[i + 1] = buf.read->s1;
+      buf.read -= 2;
+      if (buf.read < buf.start)
+        buf.read = buf.end - 2;
+      out[i] = buf.read[0];
+      out[i + 1] = buf.read[1];
     }
   } else {
     copyRing(out, out + size, 0, buf.start, buf.end, (const void **)&buf.read,
