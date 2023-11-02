@@ -16,8 +16,8 @@ DaisyPod hw;
 float DSY_SDRAM_BSS buffer[2 * (1 + 10 * 48000)]; /* 10s at 48kHz */
 
 struct {
-  float *start, *end, *write, *read, *prev_read, read_frac;
-} buf = {buffer, buffer + nelem(buffer), buffer, buffer, buffer, 0};
+  float *start, *end, *write, *read, read_frac;
+} buf = {buffer, buffer + nelem(buffer), buffer, buffer, 0};
 
 void copyRing(void *dstStart, void *dstEnd, void **dstPos, const void *srcStart,
               const void *srcEnd, const void **srcPos, size_t nElem,
@@ -47,15 +47,13 @@ void copyRing(void *dstStart, void *dstEnd, void **dstPos, const void *srcStart,
   }
 }
 
-float *bufWrapLeft(float *p) {
-  while (p < buf.start)
-    p += buf.end - buf.start;
+float *bufWrap(float *p) {
+  ptrdiff_t buf_size = buf.end - buf.start;
+  if (p < buf.start)
+    p += buf_size;
+  else if (p >= buf.end)
+    p -= buf_size;
   return p;
-}
-
-void buf_decr_read(void) {
-  buf.prev_read = buf.read;
-  buf.read = bufWrapLeft(buf.read - 2);
 }
 
 float combine(float ratio, float x0, float x1) {
@@ -74,8 +72,7 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
   float speed = hw.knob1.Process();
   if (hw.button1.RisingEdge()) { /* start of reverse playback */
     /* buf.write - 2 is the newest frame in the buffer. */
-    buf.prev_read = bufWrapLeft(buf.write - 2);
-    buf.read = bufWrapLeft(buf.prev_read - 2);
+    buf.read = bufWrap(buf.write - 2);
   } else if (hw.button1.FallingEdge()) { /* return to forward playback */
     buf.read = old_write;
   }
@@ -83,9 +80,10 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
   if (hw.button1.Pressed()) { /* reverse mode active */
     for (size_t i = 0; i < size; i += 2) {
       for (buf.read_frac += speed; buf.read_frac > 1.0; buf.read_frac -= 1.0)
-        buf_decr_read();
-      out[i] = combine(buf.read_frac, buf.read[0], buf.prev_read[0]);
-      out[i + 1] = combine(buf.read_frac, buf.read[1], buf.prev_read[1]);
+        buf.read = bufWrap(buf.read - 2);
+      for (int j = 0; j < 2; j++)
+        out[i + j] =
+            combine(buf.read_frac, buf.read[j], bufWrap(buf.read + 2)[j]);
     }
   } else { /* normal forward playback */
     copyRing(out, out + size, 0, buf.start, buf.end, (const void **)&buf.read,
