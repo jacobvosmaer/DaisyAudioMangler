@@ -73,21 +73,24 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
   if (hw.button1.RisingEdge()) { /* start of reverse playback */
     /* buf.write - 2 is the newest frame in the buffer. */
     buf.read = bufWrap(buf.write - 2);
-  } else if (hw.button1.FallingEdge()) { /* return to forward playback */
+    buf.read_frac = 0;
+  } else if (hw.button1.FallingEdge() ||
+             hw.button2.FallingEdge()) { /* return to forward playback */
     buf.read = old_write;
+    buf.read_frac = 0;
   }
 
-  if (hw.button1.Pressed()) { /* reverse mode active */
+  if (hw.button2.Pressed()) {
+    memset(out, 0, size * sizeof(*out));
+  } else {
+    int dir = hw.button1.Pressed() ? -1 : 1;
     for (size_t i = 0; i < size; i += 2) {
       for (buf.read_frac += speed; buf.read_frac > 1.0; buf.read_frac -= 1.0)
-        buf.read = bufWrap(buf.read - 2);
+        buf.read = bufWrap(buf.read + dir * 2);
       for (int j = 0; j < 2; j++)
         out[i + j] =
-            combine(buf.read_frac, buf.read[j], bufWrap(buf.read + 2)[j]);
+            combine(buf.read_frac, buf.read[j], bufWrap(buf.read - dir * 2)[j]);
     }
-  } else { /* normal forward playback */
-    copyRing(out, out + size, 0, buf.start, buf.end, (const void **)&buf.read,
-             size, sizeof(*out));
   }
 }
 
