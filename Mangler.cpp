@@ -16,9 +16,8 @@ DaisyPod hw;
 float DSY_SDRAM_BSS buffer[2 * (1 + 10 * 48000)]; /* 10s at 48kHz */
 
 struct {
-  float *start, *end, *write, *read;
-  float speed, read_frac;
-} buf = {buffer, buffer + nelem(buffer), buffer, buffer, 0.8, 0};
+  float *start, *end, *write, *read, *prev_read, read_frac;
+} buf = {buffer, buffer + nelem(buffer), buffer, buffer, buffer, 0};
 
 void copyRing(void *dstStart, void *dstEnd, void **dstPos, const void *srcStart,
               const void *srcEnd, const void **srcPos, size_t nElem,
@@ -48,10 +47,15 @@ void copyRing(void *dstStart, void *dstEnd, void **dstPos, const void *srcStart,
   }
 }
 
+float *bufWrapLeft(float *p) {
+  while (p < buf.start)
+    p += buf.end - buf.start;
+  return p;
+}
+
 void buf_decr_read(void) {
-  buf.read -= 2;
-  if (buf.read < buf.start)
-    buf.read = buf.end - 2;
+  buf.prev_read = buf.read;
+  buf.read = bufWrapLeft(buf.read - 2);
 }
 
 float combine(float ratio, float x0, float x1) {
@@ -66,26 +70,22 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
   copyRing(buf.start, buf.end, (void **)&buf.write, in, in + size, 0, size,
            sizeof(*in));
 
-  hw.ProcessDigitalControls();
+  hw.ProcessAllControls();
+  float speed = hw.knob1.Process();
   if (hw.button1.RisingEdge()) { /* start of reverse playback */
-    buf.read = buf.write;
-    buf_decr_read();
+    /* buf.write - 2 is the newest frame in the buffer. */
+    buf.prev_read = bufWrapLeft(buf.write - 2);
+    buf.read = bufWrapLeft(buf.prev_read - 2);
   } else if (hw.button1.FallingEdge()) { /* return to forward playback */
     buf.read = old_write;
   }
 
   if (hw.button1.Pressed()) { /* reverse mode active */
     for (size_t i = 0; i < size; i += 2) {
-      /* This does not look correct to me. I think the while loop needs to
-       * update prev_sample? */
-      float prev_sample[2] = {buf.read[0], buf.read[1]};
-      buf.read_frac += buf.speed;
-      while (buf.read_frac > 1.0) {
+      for (buf.read_frac += speed; buf.read_frac > 1.0; buf.read_frac -= 1.0)
         buf_decr_read();
-        buf.read_frac -= 1.0;
-      }
-      out[i] = combine(buf.read_frac, buf.read[0], prev_sample[0]);
-      out[i + 1] = combine(buf.read_frac, buf.read[1], prev_sample[1]);
+      out[i] = combine(buf.read_frac, buf.read[0], buf.prev_read[0]);
+      out[i + 1] = combine(buf.read_frac, buf.read[1], buf.prev_read[1]);
     }
   } else { /* normal forward playback */
     copyRing(out, out + size, 0, buf.start, buf.end, (const void **)&buf.read,
@@ -95,6 +95,7 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
 
 int main(void) {
   hw.Init();
+  hw.StartAdc();
   hw.SetAudioBlockSize(4);
   hw.StartAudio(AudioCallback);
 
