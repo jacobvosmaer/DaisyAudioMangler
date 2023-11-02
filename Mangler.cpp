@@ -8,7 +8,7 @@ DaisyPod hw;
 
 #define nelem(x) (sizeof(x) / sizeof(*x))
 
-float DSY_SDRAM_BSS buffer[2 * (1 + 10 * 48000)]; /* 10s at 48kHz */
+float DSY_SDRAM_BSS buffer[(1<<26)/sizeof(float)]; /* Use all 64MB of sample RAM */
 
 struct {
   float *start, *end, *write, *read, read_frac;
