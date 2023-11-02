@@ -6,12 +6,7 @@ using namespace daisy;
 
 DaisyPod hw;
 
-#define min(x, y) ((x) < (y) ? (x) : (y))
 #define nelem(x) (sizeof(x) / sizeof(*x))
-#undef assert
-#define assert(x)                                                              \
-  if (!(x))                                                                    \
-  __builtin_trap()
 
 float DSY_SDRAM_BSS buffer[2 * (1 + 10 * 48000)]; /* 10s at 48kHz */
 
@@ -26,10 +21,6 @@ float *bufWrap(float *p) {
   else if (p >= buf.end)
     p -= buf_size;
   return p;
-}
-
-float combine(float ratio, float x0, float x1) {
-  return ratio * x0 + (1.0 - ratio) * x1;
 }
 
 static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
@@ -61,8 +52,8 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
       for (buf.read_frac += speed; buf.read_frac > 1.0; buf.read_frac -= 1.0)
         buf.read = bufWrap(buf.read + dir * 2);
       for (int j = 0; j < 2; j++)
-        out[i + j] =
-            combine(buf.read_frac, buf.read[j], bufWrap(buf.read - dir * 2)[j]);
+        out[i + j] = buf.read_frac * buf.read[j] +
+                     (1.0 - buf.read_frac) * bufWrap(buf.read - dir * 2)[j];
     }
   } else {
     for (int i = 0; i < (int)size; i += 2) {
