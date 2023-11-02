@@ -19,34 +19,6 @@ struct {
   float *start, *end, *write, *read, read_frac;
 } buf = {buffer, buffer + nelem(buffer), buffer, buffer, 0};
 
-void copyRing(void *dstStart, void *dstEnd, void **dstPos, const void *srcStart,
-              const void *srcEnd, const void **srcPos, size_t nElem,
-              size_t elemSize) {
-  struct {
-    char *start, *end, **pos;
-  } dst = {(char *)dstStart, (char *)dstEnd,
-           (char **)(dstPos ? dstPos : &dstStart)},
-    src = {(char *)srcStart, (char *)srcEnd,
-           (char **)(srcPos ? srcPos : &srcStart)};
-  ptrdiff_t nBytes;
-
-  if (!nElem || !elemSize)
-    return;
-
-  assert(nElem < PTRDIFF_MAX / elemSize);
-  nBytes = nElem * elemSize;
-
-  assert(src.start <= *src.pos && *src.pos <= src.end);
-  assert(dst.start <= *dst.pos && *dst.pos <= dst.end);
-  while (nBytes) {
-    ptrdiff_t chunk = min(nBytes, min(src.end - *src.pos, dst.end - *dst.pos));
-    memmove(*dst.pos, *src.pos, chunk);
-    *dst.pos = *dst.pos + chunk == dst.end ? dst.start : *dst.pos + chunk;
-    *src.pos = *src.pos + chunk == src.end ? src.start : *src.pos + chunk;
-    nBytes -= chunk;
-  }
-}
-
 float *bufWrap(float *p) {
   ptrdiff_t buf_size = buf.end - buf.start;
   if (p < buf.start)
@@ -65,8 +37,11 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           size_t size) {
   float *old_write = buf.write;
 
-  copyRing(buf.start, buf.end, (void **)&buf.write, in, in + size, 0, size,
-           sizeof(*in));
+  for (int i = 0; i < (int)size; i += 2) {
+    for (int j = 0; j < 2; j++)
+      buf.write[j] = in[i + j];
+    buf.write = bufWrap(buf.write + 2);
+  }
 
   hw.ProcessAllControls();
   float speed = hw.knob1.Process();
@@ -80,16 +55,20 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
     buf.read_frac = 0;
   }
 
-  if (hw.button2.Pressed()) {
-    memset(out, 0, size * sizeof(*out));
-  } else {
+  if (hw.button1.Pressed() || hw.button2.Pressed()) {
     int dir = hw.button1.Pressed() ? -1 : 1;
-    for (size_t i = 0; i < size; i += 2) {
+    for (int i = 0; i < (int)size; i += 2) {
       for (buf.read_frac += speed; buf.read_frac > 1.0; buf.read_frac -= 1.0)
         buf.read = bufWrap(buf.read + dir * 2);
       for (int j = 0; j < 2; j++)
         out[i + j] =
             combine(buf.read_frac, buf.read[j], bufWrap(buf.read - dir * 2)[j]);
+    }
+  } else {
+    for (int i = 0; i < (int)size; i += 2) {
+      for (int j = 0; j < 2; j++)
+        out[i + j] = buf.read[j];
+      buf.read = bufWrap(buf.read + 2);
     }
   }
 }
