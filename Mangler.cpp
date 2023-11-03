@@ -8,11 +8,13 @@ DaisyPod hw;
 
 #define nelem(x) (sizeof(x) / sizeof(*x))
 
-float DSY_SDRAM_BSS buffer[(1<<26)/sizeof(float)]; /* Use all 64MB of sample RAM */
+float DSY_SDRAM_BSS
+    buffer[(1 << 26) / sizeof(float)]; /* Use all 64MB of sample RAM */
 
 struct {
   float *start, *end, *write, *read, read_frac;
-} buf = {buffer, buffer + nelem(buffer), buffer, buffer, 0};
+  int dir;
+} buf = {buffer, buffer + nelem(buffer), buffer, buffer, 0, 1};
 
 float *bufWrap(float *p) {
   ptrdiff_t buf_size = buf.end - buf.start;
@@ -35,25 +37,27 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
   }
 
   hw.ProcessAllControls();
+  int new_dir = hw.encoder.Increment();
   float speed = hw.knob1.Process();
-  if (hw.button1.RisingEdge()) { /* start of reverse playback */
+  if (hw.button1.Pressed() && buf.dir == 1 &&
+      new_dir == -1) { /* start of reverse playback */
     /* buf.write - 2 is the newest frame in the buffer. */
     buf.read = bufWrap(buf.write - 2);
     buf.read_frac = 0;
-  } else if (hw.button1.FallingEdge() ||
-             hw.button2.FallingEdge()) { /* return to forward playback */
+  } else if (hw.button1.FallingEdge() ) { /* return to normal forward playback */
     buf.read = old_write;
     buf.read_frac = 0;
   }
+  if (new_dir)
+    buf.dir = new_dir;
 
-  if (hw.button1.Pressed() || hw.button2.Pressed()) {
-    int dir = hw.button1.Pressed() ? -1 : 1;
+  if (hw.button1.Pressed()) {
     for (int i = 0; i < (int)size; i += 2) {
       for (buf.read_frac += speed; buf.read_frac > 1.0; buf.read_frac -= 1.0)
-        buf.read = bufWrap(buf.read + dir * 2);
+        buf.read = bufWrap(buf.read + buf.dir * 2);
       for (int j = 0; j < 2; j++)
         out[i + j] = buf.read_frac * buf.read[j] +
-                     (1.0 - buf.read_frac) * bufWrap(buf.read - dir * 2)[j];
+                     (1.0 - buf.read_frac) * bufWrap(buf.read - buf.dir * 2)[j];
     }
   } else {
     for (int i = 0; i < (int)size; i += 2) {
