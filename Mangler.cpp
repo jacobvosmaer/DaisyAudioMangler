@@ -30,27 +30,30 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           size_t size) {
   float *old_write = buf.write;
 
+  /* Read input buffer */
   for (int i = 0; i < (int)size; i += 2) {
     for (int j = 0; j < 2; j++)
       buf.write[j] = in[i + j];
     buf.write = bufWrap(buf.write + 2);
   }
 
+  /* UI logic */
   hw.ProcessAllControls();
   int new_dir = hw.encoder.Increment();
+  if (new_dir)
+    buf.dir = new_dir;
   float speed = hw.knob1.Process();
-  if (hw.button1.Pressed() && buf.dir == 1 &&
-      new_dir == -1) { /* start of reverse playback */
+  if (hw.button1.RisingEdge() &&
+      buf.dir == -1) { /* start of reverse playback */
     /* buf.write - 2 is the newest frame in the buffer. */
     buf.read = bufWrap(buf.write - 2);
     buf.read_frac = 0;
-  } else if (hw.button1.FallingEdge() ) { /* return to normal forward playback */
+  } else if (hw.button1.FallingEdge()) { /* return to normal forward playback */
     buf.read = old_write;
     buf.read_frac = 0;
   }
-  if (new_dir)
-    buf.dir = new_dir;
 
+  /* Write to output buffer */
   if (hw.button1.Pressed()) {
     for (int i = 0; i < (int)size; i += 2) {
       for (buf.read_frac += speed; buf.read_frac > 1.0; buf.read_frac -= 1.0)
@@ -59,6 +62,8 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
         out[i + j] = buf.read_frac * buf.read[j] +
                      (1.0 - buf.read_frac) * bufWrap(buf.read - buf.dir * 2)[j];
     }
+  } else if (hw.button2.Pressed()) {
+    memset(out, 0, size * sizeof(*out));
   } else {
     for (int i = 0; i < (int)size; i += 2) {
       for (int j = 0; j < 2; j++)
