@@ -27,6 +27,8 @@ void buf_init(void) {
   buf.speed = 1;
   buf.dir = 1;
   buf.last_knob2_update = 0;
+
+  memset(buffer, 0, sizeof(buffer));
 }
 
 float *bufWrap(float *p) {
@@ -73,8 +75,11 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
   if (now - buf.last_knob2_update >= 10) {
     buf.last_knob2_update = now;
     float knob2 = hw.knob2.Process();
-    if (hw.button2.Pressed())
-      speed = 1000.0 * (knob2 - buf.last_knob2);
+    float diff = knob2 - buf.last_knob2;
+    if (hw.button2.Pressed()) {
+      speed = diff;
+      buf.dir = speed > 0 ? 1 : -1;
+    }
     buf.last_knob2 = knob2;
   }
 
@@ -97,8 +102,8 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
 }
 
 int main(void) {
-  buf_init();
   hw.Init();
+  buf_init();
   hw.StartAdc();
   hw.SetAudioBlockSize(4);
   hw.StartAudio(AudioCallback);
