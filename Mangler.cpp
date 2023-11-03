@@ -12,9 +12,22 @@ float DSY_SDRAM_BSS
     buffer[(1 << 26) / sizeof(float)]; /* Use all 64MB of sample RAM */
 
 struct {
-  float *start, *end, *write, *read, read_frac;
+  float *start, *end, *write, *read, read_frac, last_knob2, speed;
   int dir;
-} buf = {buffer, buffer + nelem(buffer), buffer, buffer, 0, 1};
+  uint32_t last_knob2_update;
+} buf;
+
+void buf_init(void) {
+  buf.start = buffer;
+  buf.end = buffer + nelem(buffer);
+  buf.write = buf.start;
+  buf.read = buf.start;
+  buf.read_frac = 0;
+  buf.last_knob2 = 0;
+  buf.speed = 1;
+  buf.dir = 1;
+  buf.last_knob2_update = 0;
+}
 
 float *bufWrap(float *p) {
   ptrdiff_t buf_size = buf.end - buf.start;
@@ -29,6 +42,7 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           AudioHandle::InterleavingOutputBuffer out,
                           size_t size) {
   float *old_write = buf.write;
+  float speed = 1.0;
 
   /* Read input buffer */
   for (int i = 0; i < (int)size; i += 2) {
@@ -42,7 +56,6 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
   int new_dir = hw.encoder.Increment();
   if (new_dir)
     buf.dir = new_dir;
-  float speed = hw.knob1.Process();
   if (hw.button1.RisingEdge() &&
       buf.dir == -1) { /* start of reverse playback */
     /* buf.write - 2 is the newest frame in the buffer. */
@@ -53,8 +66,20 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
     buf.read_frac = 0;
   }
 
+  if (hw.button1.Pressed())
+    speed = hw.knob1.Process();
+
+  uint32_t now = System::GetNow();
+  if (now - buf.last_knob2_update >= 10) {
+    buf.last_knob2_update = now;
+    float knob2 = hw.knob2.Process();
+    if (hw.button2.Pressed())
+      speed = 1000.0 * (knob2 - buf.last_knob2);
+    buf.last_knob2 = knob2;
+  }
+
   /* Write to output buffer */
-  if (hw.button1.Pressed()) {
+  if (hw.button1.Pressed() || hw.button2.Pressed()) {
     for (int i = 0; i < (int)size; i += 2) {
       for (buf.read_frac += speed; buf.read_frac > 1.0; buf.read_frac -= 1.0)
         buf.read = bufWrap(buf.read + buf.dir * 2);
@@ -62,8 +87,6 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
         out[i + j] = buf.read_frac * buf.read[j] +
                      (1.0 - buf.read_frac) * bufWrap(buf.read - buf.dir * 2)[j];
     }
-  } else if (hw.button2.Pressed()) {
-    memset(out, 0, size * sizeof(*out));
   } else {
     for (int i = 0; i < (int)size; i += 2) {
       for (int j = 0; j < 2; j++)
@@ -74,6 +97,7 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
 }
 
 int main(void) {
+  buf_init();
   hw.Init();
   hw.StartAdc();
   hw.SetAudioBlockSize(4);
