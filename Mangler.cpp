@@ -12,9 +12,8 @@ float DSY_SDRAM_BSS
     buffer[(1 << 26) / sizeof(float)]; /* Use all 64MB of sample RAM */
 
 struct {
-  float *start, *end, *write, *read, read_frac, last_knob2, speed;
+  float *start, *end, *write, *read, read_frac;
   int dir;
-  uint32_t last_knob2_update;
 } buf;
 
 void buf_init(void) {
@@ -23,10 +22,7 @@ void buf_init(void) {
   buf.write = buf.start;
   buf.read = buf.start;
   buf.read_frac = 0;
-  buf.last_knob2 = 0;
-  buf.speed = 1;
   buf.dir = 1;
-  buf.last_knob2_update = 0;
 
   memset(buffer, 0, sizeof(buffer));
 }
@@ -44,7 +40,6 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           AudioHandle::InterleavingOutputBuffer out,
                           size_t size) {
   float *old_write = buf.write;
-  float speed = 1.0;
 
   /* Read input buffer */
   for (int i = 0; i < (int)size; i += 2) {
@@ -68,23 +63,9 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
     buf.read_frac = 0;
   }
 
-  if (hw.button1.Pressed())
-    speed = hw.knob1.Process();
-
-  uint32_t now = System::GetNow();
-  if (now - buf.last_knob2_update >= 10) {
-    buf.last_knob2_update = now;
-    float knob2 = hw.knob2.Process();
-    float diff = knob2 - buf.last_knob2;
-    if (hw.button2.Pressed()) {
-      speed = diff;
-      buf.dir = speed > 0 ? 1 : -1;
-    }
-    buf.last_knob2 = knob2;
-  }
-
   /* Write to output buffer */
-  if (hw.button1.Pressed() || hw.button2.Pressed()) {
+  if (hw.button1.Pressed()) {
+    float speed = hw.knob1.Process();
     for (int i = 0; i < (int)size; i += 2) {
       for (buf.read_frac += speed; buf.read_frac > 1.0; buf.read_frac -= 1.0)
         buf.read = bufWrap(buf.read + buf.dir * 2);
