@@ -56,8 +56,9 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
   }
 
   if (hw.button2.RisingEdge()) { /* start scrubbing mode */
-    buf.scrub = 0;
+    /* We want to scrub relative to the current position of knob2. */
     buf.scrub_origin = hw.knob2.Process();
+    buf.scrub = 0;
   }
 
   for (int i = 0; i < (int)size; i += 2) {
@@ -66,22 +67,22 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
     buf.write = buf_wrap(buf.write + 2);
   }
 
-  if (hw.button1.Pressed()) {
+  if (hw.button1.Pressed()) { /* variable speed playback */
     float speed = hw.knob1.Process();
     for (int i = 0; i < (int)size; i += 2) {
-      for (buf.read_frac += speed; buf.read_frac > 1.0; buf.read_frac -= 1.0)
-        buf.read = buf_wrap(buf.read + buf.dir * 2);
+      buf.read_frac += speed;
+      buf.read = buf_wrap(buf.read + 2 * buf.dir * (int)floorf(buf.read_frac));
+      buf.read_frac -= floorf(buf.read_frac);
       for (int j = 0; j < 2; j++)
-        out[i + j] =
-            buf.read_frac * buf.read[j] +
-            (1.0 - buf.read_frac) * buf_wrap(buf.read - buf.dir * 2)[j];
+        out[i + j] = combine(buf.read_frac, buf.read[j],
+                             buf_wrap(buf.read - buf.dir * 2)[j]);
     }
-  } else if (hw.button2.Pressed()) {
+  } else if (hw.button2.Pressed()) { /* scrub mode */
     float new_scrub = hw.knob2.Process() - buf.scrub_origin;
-    float scrub_range_seconds = 1.0;
-    float sample_rate = hw.AudioSampleRate();
-    float old_sample = buf.scrub * scrub_range_seconds * sample_rate;
-    float new_sample = new_scrub * scrub_range_seconds * sample_rate;
+    float scrub_range_s = 1.0;
+    float old_sample = buf.scrub * scrub_range_s * hw.AudioSampleRate();
+    float new_sample = new_scrub * scrub_range_s * hw.AudioSampleRate();
+    buf.scrub = new_scrub;
 
     float step = (new_sample - old_sample) / (float)(size / 2);
     float sample = old_sample;
@@ -91,11 +92,9 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
       float read_frac = sample - floorf(sample);
       for (int j = 0; j < 2; j++)
         out[i + j] =
-            combine(read_frac, *buf_wrap(read + j), *buf_wrap(read + 2 + j));
+            combine(read_frac, buf_wrap(read)[j], buf_wrap(read + 2)[j]);
     }
-
-    buf.scrub = new_scrub;
-  } else {
+  } else { /* normal playback */
     for (int i = 0; i < (int)size; i += 2) {
       for (int j = 0; j < 2; j++)
         out[i + j] = buf.read[j];
