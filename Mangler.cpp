@@ -13,7 +13,8 @@ float DSY_SDRAM_BSS
     buffer[(1 << 26) / sizeof(float)]; /* Use all 64MB of sample RAM */
 
 struct {
-  float *start, *end, *write, *read, read_frac, scrub, scrub_origin;
+  float *start, *end, *write, *read, read_frac, scrub, scrub_origin,
+      scrub_range_s;
   int dir;
 } buf;
 
@@ -23,6 +24,7 @@ void buf_init(void) {
   buf.write = buf.start;
   buf.read = buf.start;
   buf.read_frac = 0;
+  buf.scrub_range_s = 1.0;
   buf.dir = 1;
 
   memset(buffer, 0, sizeof(buffer));
@@ -50,10 +52,13 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           size_t size) {
   hw.ProcessAllControls();
 
-  int new_dir = hw.encoder.Increment();
-  if (new_dir)
-    buf.dir = new_dir;
-
+  int encoder = hw.encoder.Increment();
+  if (encoder) {
+    if (hw.button1.Pressed())
+      buf.dir = encoder;
+    else if (hw.button2.Pressed())
+      buf.scrub_range_s *= encoder > 0 ? 1.414 : 0.7071;
+  }
   if (hw.button1.FallingEdge() || hw.button2.FallingEdge()) {
     /* We are returning to normal playback but buf.read is possibly
      * desynchronized from buf.write. */
@@ -76,14 +81,15 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
       buf_add(&buf.read, nchan * buf.dir * (int)floorf(buf.read_frac));
       buf.read_frac -= floorf(buf.read_frac);
       for (int j = 0; j < nchan; j++)
-        out[i + j] = combine(buf.read_frac, buf.read[j],
-                             buf_wrap(buf.read - buf.dir * nchan)[j]);
+        out[i + j] =
+            combine(buf.read_frac, buf.read[j],
+                    buf_wrap(buf.read -
+                             buf.dir * nchan)[j]); /* minus sounds better ?? */
     }
   } else if (hw.button2.Pressed()) { /* scrub mode */
     float new_scrub = hw.knob2.Process() - buf.scrub_origin;
-    float scrub_range_s = 1.0;
-    float old_sample = buf.scrub * scrub_range_s * hw.AudioSampleRate();
-    float new_sample = new_scrub * scrub_range_s * hw.AudioSampleRate();
+    float old_sample = buf.scrub * buf.scrub_range_s * hw.AudioSampleRate();
+    float new_sample = new_scrub * buf.scrub_range_s * hw.AudioSampleRate();
     buf.scrub = new_scrub;
 
     float step = (new_sample - old_sample) / (float)(size / nchan);
