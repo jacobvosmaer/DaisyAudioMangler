@@ -39,31 +39,25 @@ float *bufWrap(float *p) {
 static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           AudioHandle::InterleavingOutputBuffer out,
                           size_t size) {
-  float *old_write = buf.write;
+  hw.ProcessAllControls();
 
-  /* Read input buffer */
+  int new_dir = hw.encoder.Increment();
+  if (new_dir)
+    buf.dir = new_dir;
+
+  if (hw.button1.FallingEdge()) {
+    /* button1 was pressed so buf.read is possibly desynchronized from
+     * buf.write. Reset so there is no audio lag during normal playback. */
+    buf.read = buf.write;
+    buf.read_frac = 0;
+  }
+
   for (int i = 0; i < (int)size; i += 2) {
     for (int j = 0; j < 2; j++)
       buf.write[j] = in[i + j];
     buf.write = bufWrap(buf.write + 2);
   }
 
-  /* UI logic */
-  hw.ProcessAllControls();
-  int new_dir = hw.encoder.Increment();
-  if (new_dir)
-    buf.dir = new_dir;
-  if (hw.button1.RisingEdge() &&
-      buf.dir == -1) { /* start of reverse playback */
-    /* buf.write - 2 is the newest frame in the buffer. */
-    buf.read = bufWrap(buf.write - 2);
-    buf.read_frac = 0;
-  } else if (hw.button1.FallingEdge()) { /* return to normal forward playback */
-    buf.read = old_write;
-    buf.read_frac = 0;
-  }
-
-  /* Write to output buffer */
   if (hw.button1.Pressed()) {
     float speed = hw.knob1.Process();
     for (int i = 0; i < (int)size; i += 2) {
