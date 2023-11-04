@@ -44,7 +44,6 @@ float *buf_add(float **p, ptrdiff_t n) {
 }
 
 float combine(float f, float x, float y) { return f * x + (1.0 - f) * y; }
-int fsign(float f) { return f > 0 ? 1 : -1; }
 
 static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           AudioHandle::InterleavingOutputBuffer out,
@@ -90,8 +89,7 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
     float step = (new_sample - old_sample) / (float)(size / nchan);
     float sample = old_sample;
     for (int i = 0; i < (int)size; i += nchan, sample += step) {
-      float *read =
-          buf_wrap(buf.read + nchan * fsign(sample) * (int)floorf(sample));
+      float *read = buf_wrap(buf.read + nchan * (int)floorf(sample));
       float read_frac = sample - floorf(sample);
       for (int j = 0; j < nchan; j++)
         out[i + j] = combine(read_frac, read[j], buf_wrap(read + nchan)[j]);
