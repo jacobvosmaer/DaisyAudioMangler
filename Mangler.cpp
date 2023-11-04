@@ -7,6 +7,7 @@ using namespace daisy;
 DaisyPod hw;
 
 #define nelem(x) (sizeof(x) / sizeof(*x))
+#define nchan 2
 
 float DSY_SDRAM_BSS
     buffer[(1 << 26) / sizeof(float)]; /* Use all 64MB of sample RAM */
@@ -61,21 +62,22 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
     buf.scrub = 0;
   }
 
-  for (int i = 0; i < (int)size; i += 2) {
-    for (int j = 0; j < 2; j++)
+  for (int i = 0; i < (int)size; i += nchan) {
+    for (int j = 0; j < nchan; j++)
       buf.write[j] = in[i + j];
-    buf.write = buf_wrap(buf.write + 2);
+    buf.write = buf_wrap(buf.write + nchan);
   }
 
   if (hw.button1.Pressed()) { /* variable speed playback */
     float speed = hw.knob1.Process();
-    for (int i = 0; i < (int)size; i += 2) {
+    for (int i = 0; i < (int)size; i += nchan) {
       buf.read_frac += speed;
-      buf.read = buf_wrap(buf.read + 2 * buf.dir * (int)floorf(buf.read_frac));
+      buf.read =
+          buf_wrap(buf.read + nchan * buf.dir * (int)floorf(buf.read_frac));
       buf.read_frac -= floorf(buf.read_frac);
-      for (int j = 0; j < 2; j++)
+      for (int j = 0; j < nchan; j++)
         out[i + j] = combine(buf.read_frac, buf.read[j],
-                             buf_wrap(buf.read - buf.dir * 2)[j]);
+                             buf_wrap(buf.read - buf.dir * nchan)[j]);
     }
   } else if (hw.button2.Pressed()) { /* scrub mode */
     float new_scrub = hw.knob2.Process() - buf.scrub_origin;
@@ -84,21 +86,21 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
     float new_sample = new_scrub * scrub_range_s * hw.AudioSampleRate();
     buf.scrub = new_scrub;
 
-    float step = (new_sample - old_sample) / (float)(size / 2);
+    float step = (new_sample - old_sample) / (float)(size / nchan);
     float sample = old_sample;
-    for (int i = 0; i < (int)size; i += 2, sample += step) {
+    for (int i = 0; i < (int)size; i += nchan, sample += step) {
       float *read =
-          buf_wrap(buf.read + 2 * fsign(sample) * (int)floorf(sample));
+          buf_wrap(buf.read + nchan * fsign(sample) * (int)floorf(sample));
       float read_frac = sample - floorf(sample);
-      for (int j = 0; j < 2; j++)
+      for (int j = 0; j < nchan; j++)
         out[i + j] =
-            combine(read_frac, buf_wrap(read)[j], buf_wrap(read + 2)[j]);
+            combine(read_frac, buf_wrap(read)[j], buf_wrap(read + nchan)[j]);
     }
   } else { /* normal playback */
-    for (int i = 0; i < (int)size; i += 2) {
-      for (int j = 0; j < 2; j++)
+    for (int i = 0; i < (int)size; i += nchan) {
+      for (int j = 0; j < nchan; j++)
         out[i + j] = buf.read[j];
-      buf.read = buf_wrap(buf.read + 2);
+      buf.read = buf_wrap(buf.read + nchan);
     }
   }
 }
