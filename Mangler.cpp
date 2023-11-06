@@ -45,7 +45,7 @@ float *buf_add(float **p, ptrdiff_t n) {
   return ret;
 }
 
-float combine(float f, float x, float y) { return f * x + (1.0 - f) * y; }
+float interpolate(float f, float x, float y) { return f * x + (1.0 - f) * y; }
 
 static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           AudioHandle::InterleavingOutputBuffer out,
@@ -81,10 +81,10 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
       buf_add(&buf.read, nchan * buf.dir * (int)floorf(buf.read_frac));
       buf.read_frac -= floorf(buf.read_frac);
       for (int j = 0; j < nchan; j++)
-        out[i + j] =
-            combine(buf.read_frac, buf.read[j],
-                    buf_wrap(buf.read -
-                             buf.dir * nchan)[j]); /* minus sounds better ?? */
+        out[i + j] = interpolate(
+            buf.read_frac, buf.read[j],
+            buf_wrap(buf.read -
+                     buf.dir * nchan)[j]); /* minus sounds better ?? */
     }
   } else if (hw.button2.Pressed()) { /* scrub mode */
     float new_scrub = hw.knob2.Process() - buf.scrub_origin;
@@ -98,7 +98,7 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
       float *read = buf_wrap(buf.read + nchan * (int)floorf(sample));
       float read_frac = sample - floorf(sample);
       for (int j = 0; j < nchan; j++)
-        out[i + j] = combine(read_frac, read[j], buf_wrap(read + nchan)[j]);
+        out[i + j] = interpolate(read_frac, read[j], buf_wrap(read + nchan)[j]);
     }
   } else { /* normal playback */
     for (int i = 0; i < (int)size; i++)
