@@ -7,7 +7,12 @@ extern "C" {
 
 #define nchan 2
 
-struct buf buf;
+struct buf {
+  float *start, *end, *write, *read, read_frac, scrub, scrub_origin,
+      scrub_range_s;
+  int dir, mode, samplerate;
+  float knob1, knob2;
+} buf;
 
 void buf_init(float *buffer, int size, int samplerate) {
   buf.start = buffer;
@@ -39,13 +44,13 @@ float *buf_add(float **p, ptrdiff_t n) {
 
 float interpolate(float f, float x, float y) { return f * x + (1.0 - f) * y; }
 
-void buf_callback(const float *in, float *out, int size) {
-  for (int i = 0; i < (int)size; i++)
+void buf_callback(const float *in, float *out, int size, float speed,
+                  float new_scrub) {
+  for (int i = 0; i < size; i++)
     *buf_add(&buf.write, 1) = in[i];
 
   if (buf.mode == BUF_VARISPEED) {
-    float speed = buf.knob1;
-    for (int i = 0; i < (int)size; i += nchan, buf.read_frac += speed) {
+     for (int i = 0; i < size; i += nchan, buf.read_frac += speed) {
       buf_add(&buf.read, nchan * buf.dir * (int)floorf(buf.read_frac));
       buf.read_frac -= floorf(buf.read_frac);
       for (int j = 0; j < nchan; j++)
@@ -55,22 +60,38 @@ void buf_callback(const float *in, float *out, int size) {
                      buf.dir * nchan)[j]); /* minus sounds better ?? */
     }
   } else if (buf.mode == BUF_SCRUB) {
-    float new_scrub = buf.knob2 - buf.scrub_origin;
+    new_scrub -= buf.scrub_origin;
     float old_sample = buf.scrub * buf.scrub_range_s * buf.samplerate;
     float new_sample = new_scrub * buf.scrub_range_s * buf.samplerate;
     buf.scrub = new_scrub;
 
     float step = (new_sample - old_sample) / (float)(size / nchan);
     float sample = old_sample;
-    for (int i = 0; i < (int)size; i += nchan, sample += step) {
+    for (int i = 0; i < size; i += nchan, sample += step) {
       float *read = buf_wrap(buf.read + nchan * (int)floorf(sample));
       float read_frac = sample - floorf(sample);
       for (int j = 0; j < nchan; j++)
         out[i + j] = interpolate(read_frac, read[j], buf_wrap(read + nchan)[j]);
     }
   } else { /* normal playback */
-    for (int i = 0; i < (int)size; i++)
+    for (int i = 0; i < size; i++)
       out[i] = *buf_add(&buf.read, 1);
+  }
+}
+
+void buf_setdirection(int dir) { buf.dir = dir; }
+void buf_setscrubrange(float range) { buf.scrub_range_s = range; }
+
+void buf_setmode(int mode, float scrub_origin) {
+  buf.mode = mode;
+  if (mode == BUF_PASSTHROUGH) {
+    /* We are returning to normal playback but buf.read is possibly
+     * desynchronized from buf.write. */
+    buf.read = buf.write;
+    buf.read_frac = 0;
+  } else if (mode == BUF_SCRUB) {
+    buf.scrub_origin = scrub_origin;
+    buf.scrub = 0;
   }
 }
 
