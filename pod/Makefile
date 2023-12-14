@@ -3,9 +3,10 @@ TARGET = Mangler
 
 # Sources
 CPP_SOURCES = Mangler.cpp
+C_SOURCES = ../audio.c
 
 # Library Locations
-LIBDAISY_DIR = ./libDaisy
+LIBDAISY_DIR = ../libDaisy
 
 # Core location, and generic Makefile.
 SYSTEM_FILES_DIR = $(LIBDAISY_DIR)/core
