@@ -1,7 +1,3 @@
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #include "audio.h"
 #include <string.h>
 
@@ -50,7 +46,7 @@ void buf_callback(const float *in, float *out, int size, float speed,
     *buf_add(&buf.write, 1) = in[i];
 
   if (buf.mode == BUF_VARISPEED) {
-     for (int i = 0; i < size; i += nchan, buf.read_frac += speed) {
+    for (int i = 0; i < size; i += nchan, buf.read_frac += speed) {
       buf_add(&buf.read, nchan * buf.dir * (int)floorf(buf.read_frac));
       buf.read_frac -= floorf(buf.read_frac);
       for (int j = 0; j < nchan; j++)
@@ -94,7 +90,3 @@ void buf_setmode(int mode, float scrub_origin) {
     buf.scrub = 0;
   }
 }
-
-#ifdef __cplusplus
-}
-#endif
