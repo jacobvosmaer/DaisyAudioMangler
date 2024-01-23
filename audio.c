@@ -69,9 +69,11 @@ void buf_callback(const float *in, float *out, int size, float speed,
       for (int j = 0; j < nchan; j++)
         out[i + j] = interpolate(read_frac, read[j], buf_wrap(read + nchan)[j]);
     }
-  } else { /* normal playback */
+  } else if (buf.mode == BUF_PASSTHROUGH) {
     for (int i = 0; i < size; i++)
       out[i] = *buf_add(&buf.read, 1);
+  } else if (buf.mode == BUF_MUTE) {
+    memset(out, 0, size * sizeof(*out));
   }
 }
 
