@@ -72,8 +72,6 @@ void buf_callback(const float *in, float *out, int size, float speed,
   } else if (buf.mode == BUF_PASSTHROUGH) {
     for (int i = 0; i < size; i++)
       out[i] = *buf_add(&buf.read, 1);
-  } else if (buf.mode == BUF_MUTE) {
-    memset(out, 0, size * sizeof(*out));
   }
 }
 
