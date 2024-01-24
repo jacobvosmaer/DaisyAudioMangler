@@ -17,7 +17,7 @@ MidiUartTransport midi;
 float DSY_SDRAM_BSS
     buffer[(1 << 26) / sizeof(float)]; /* Use all 64MB of sample RAM */
 
-float scrubrange = 0.25;
+float scrubrange = 1.0;
 float speed = 1.0;
 float scrub = 0.5;
 
@@ -28,10 +28,35 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
   buf_callback(in, out, size, speed, scrub);
 }
 
-uint8_t held_keys[128 / 8];
+#define NUMNOTES 128
+struct {
+  uint8_t q[NUMNOTES];
+  int len;
+} notes;
 
-void note_on(int key) {
-  held_keys[key / nelem(held_keys)] |= 1 << (key % 8);
+void delnote(uint8_t n) {
+  assert(notes.len >= 0 && notes.len <= nelem(notes.q));
+  uint8_t *p;
+  while ((p = (uint8_t *)memchr(notes.q, n, notes.len))) {
+    memmove(p, p + 1, notes.q + notes.len - (p + 1));
+    notes.len--;
+  }
+}
+
+void pushnote(uint8_t n) {
+  assert(notes.len >= 0 && notes.len < nelem(notes.q));
+  notes.q[notes.len++] = n;
+}
+
+uint8_t popnote(void) {
+  assert(notes.len > 0 && notes.len <= nelem(notes.q));
+  return notes.q[--notes.len];
+}
+
+void note_on(uint8_t key) {
+  assert(key < NUMNOTES);
+  delnote(key);
+  pushnote(key);
   switch (key % 3) {
   case 0:
     buf_setdirection(1);
@@ -42,40 +67,27 @@ void note_on(int key) {
     buf_setmode(BUF_VARISPEED, scrub);
     break;
   case 2:
-    buf_setmode(BUF_SCRUB, scrub);
+    buf_setmode(BUF_MUTE, scrub);
     break;
   }
 }
 
-void note_off(int key) {
-  int i, any_held = 0;
-  held_keys[key / nelem(held_keys)] &= ~(1 << (key % 8));
-
-  for (i = 0; i < nelem(held_keys); i++)
-    any_held |= held_keys[i];
-
-  if (!any_held)
-    buf_setmode(BUF_PASSTHROUGH, 0);
+void note_off(uint8_t key) {
+  assert(key < NUMNOTES);
+  delnote(key);
+  if (notes.len)
+    note_on(popnote());
+  else
+    buf_setmode(BUF_PASSTHROUGH, scrub);
 }
 
 void control_change(int cc, int val) {
-  if (cc == 1)
+  if (cc == 1) /* mod wheel */
     speed = 1.0 - (float)val / 127.0;
-}
-
-float bendhist[16];
-unsigned bendhistpos;
-
-void pitch_bend(int val) {
-  enum { max = (1 << 14) - 1 };
-  float *f;
-  assert(val >= 0 && val <= max);
-  assert(max > 0);
-  bendhist[bendhistpos++ % nelem(bendhist)] = (float)val / (float)max;
-  scrub = 0;
-  for (f = bendhist; f < endof(bendhist); f++)
-    scrub += *f;
-  scrub /= (float)nelem(bendhist);
+  else if (cc == 123) { /* all notes off */
+    notes.len = 0;
+    note_off(0);
+  }
 }
 
 midi_parser mp;
@@ -83,15 +95,20 @@ void midicallback(uint8_t *uartdata, size_t size, void *context) {
   while (size--) {
     midi_message msg = midi_read(&mp, *uartdata++);
     /* TODO listen on specific MIDI channel? */
-    int status = msg.status & 0xf0;
-    if (status == MIDI_NOTE_ON && msg.data[1])
-      note_on(msg.data[0]);
-    else if (status == MIDI_NOTE_OFF || status == MIDI_NOTE_ON)
+    switch (msg.status & 0xf0) {
+    case MIDI_NOTE_ON:
+      if (msg.data[1])
+        note_on(msg.data[0]);
+      else
+        note_off(msg.data[0]);
+      break;
+    case MIDI_NOTE_OFF:
       note_off(msg.data[0]);
-    else if (status == MIDI_CONTROL_CHANGE)
+      break;
+    case MIDI_CONTROL_CHANGE:
       control_change(msg.data[0], msg.data[1]);
-    else if (status == MIDI_PITCH_BEND)
-      pitch_bend((msg.data[0] << 7) | msg.data[1]);
+      break;
+    }
   }
 }
 
