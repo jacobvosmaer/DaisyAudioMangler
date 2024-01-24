@@ -36,10 +36,14 @@ struct {
 
 void delnote(uint8_t n) {
   assert(notes.len >= 0 && notes.len <= nelem(notes.q));
-  uint8_t *p;
-  while ((p = (uint8_t *)memchr(notes.q, n, notes.len))) {
-    memmove(p, p + 1, notes.q + notes.len - (p + 1));
-    notes.len--;
+  uint8_t *p = notes.q;
+  while (p < notes.q + notes.len) {
+    if (*p == n) {
+      memmove(p, p + 1, notes.q + notes.len - (p + 1));
+      notes.len--;
+    } else {
+      p++;
+    }
   }
 }
 
