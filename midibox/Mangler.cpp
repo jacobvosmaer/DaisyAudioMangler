@@ -12,7 +12,6 @@ DaisySeed hw;
 MidiUartTransport midi;
 
 #define nelem(x) (ptrdiff_t)(sizeof(x) / sizeof(*x))
-#define endof(x) (x + nelem(x))
 
 float DSY_SDRAM_BSS
     buffer[(1 << 26) / sizeof(float)]; /* Use all 64MB of sample RAM */
