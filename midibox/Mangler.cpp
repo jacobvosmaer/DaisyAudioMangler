@@ -16,15 +16,13 @@ MidiUartTransport midi;
 float DSY_SDRAM_BSS
     buffer[(1 << 26) / sizeof(float)]; /* Use all 64MB of sample RAM */
 
-float scrubrange = 1.0;
 float speed = 1.0;
-float scrub = 0.5;
+enum { midichannel = 16 }; /* Hard-code MIDI channel, 1-based */
 
 static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           AudioHandle::InterleavingOutputBuffer out,
                           size_t size) {
-  buf_setscrubrange(scrubrange);
-  buf_callback(in, out, size, speed, scrub);
+  buf_callback(in, out, size, speed, 0);
 }
 
 #define NUMNOTES 128
@@ -63,14 +61,14 @@ void note_on(uint8_t key) {
   switch (key % 3) {
   case 0:
     buf_setdirection(1);
-    buf_setmode(BUF_VARISPEED, scrub);
+    buf_setmode(BUF_VARISPEED, 0);
     break;
   case 1:
     buf_setdirection(-1);
-    buf_setmode(BUF_VARISPEED, scrub);
+    buf_setmode(BUF_VARISPEED, 0);
     break;
   case 2:
-    buf_setmode(BUF_MUTE, scrub);
+    buf_setmode(BUF_MUTE, 0);
     break;
   }
 }
@@ -81,7 +79,7 @@ void note_off(uint8_t key) {
   if (notes.len)
     note_on(popnote());
   else
-    buf_setmode(BUF_PASSTHROUGH, scrub);
+    buf_setmode(BUF_PASSTHROUGH, 0);
 }
 
 void control_change(int cc, int val) {
@@ -97,7 +95,8 @@ midi_parser mp;
 void midicallback(uint8_t *uartdata, size_t size, void *context) {
   while (size--) {
     midi_message msg = midi_read(&mp, *uartdata++);
-    /* TODO listen on specific MIDI channel? */
+    if ((msg.status & (midichannel - 1)) != (midichannel - 1))
+      continue;
     switch (msg.status & 0xf0) {
     case MIDI_NOTE_ON:
       if (msg.data[1])
