@@ -8,8 +8,8 @@
 #define nelem(x) (sizeof(x) / sizeof(*(x)))
 
 struct buf {
-  float *start, *end, *write, *read;
-  int dir, mode;
+  float *start, *end, *write, *read, crossfade;
+  int dir, mode, oldmode;
   struct {
     float *read;
   } passthrough;
@@ -79,14 +79,24 @@ void buf_callback(const float *in, float *out, int size) {
   for (int i = 0; i < size; i += nchan) {
     for (int k = 0; k < nelem(engine); k++)
       engine[k](frames[k]);
-    memmove(out + i, frames[buf.mode], sizeof(frames[0]));
+    for (int j = 0; j < nchan; j++)
+      out[i + j] = interpolate(buf.crossfade, frames[buf.oldmode][j],
+                               frames[buf.mode][j]);
+    buf.crossfade -= 0.001; /* seems slow enough to stop clicks at 96kHz */
+    if (buf.crossfade <= 0.1)
+      buf.crossfade = 0;
   }
 }
 
 void buf_setdirection(int dir) { buf.dir = dir; }
 
 void buf_setmode(int mode) {
+  if (mode == buf.mode)
+    return;
+
+  buf.oldmode = buf.mode;
   buf.mode = mode;
+  buf.crossfade = 1.0;
   if (mode == BUF_VARISPEED) {
     buf.varispeed.read = buf.write;
     buf.varispeed.read_frac = 0;
