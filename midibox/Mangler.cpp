@@ -119,6 +119,7 @@ int main(void) {
   buf_init(buffer, nelem(buffer), hw.AudioSampleRate());
   midi.Init(MidiUartTransport::Config());
   midi.StartRx(midicallback, 0);
+  hw.SetAudioSampleRate(SaiHandle::Config::SampleRate::SAI_96KHZ);
   hw.StartAudio(AudioCallback);
 
   while (1)
