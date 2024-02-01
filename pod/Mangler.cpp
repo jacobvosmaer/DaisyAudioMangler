@@ -25,11 +25,13 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
 
   if (hw.button1.RisingEdge())
     buf_setmode(BUF_VARISPEED);
-else if(hw.button2.RisingEdge())buf_setmode(BUF_MUTE);
-  else if (hw.button1.FallingEdge()||hw.button2.FallingEdge() )
+  else if (hw.button2.RisingEdge())
+    buf_setmode(BUF_MUTE);
+  else if (hw.button1.FallingEdge() || hw.button2.FallingEdge())
     buf_setmode(BUF_PASSTHROUGH);
 
-  buf_callback(in, out, size, hw.knob1.Process());
+  buf_setspeed(hw.knob1.Process());
+  buf_callback(in, out, size);
 }
 
 int main(void) {

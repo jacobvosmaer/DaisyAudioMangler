@@ -70,12 +70,11 @@ void updatemute(float *out) { out[0] = out[1] = 0; }
 void (*engine[BUF_NMODES])(float *) = {updatepassthrough, updatevarispeed,
                                        updatemute};
 
-void buf_callback(const float *in, float *out, int size, float speed) {
+void buf_callback(const float *in, float *out, int size) {
   float frames[BUF_NMODES][nchan];
 
   for (int i = 0; i < size; i++)
     *buf_add(&buf.write, 1) = in[i];
-  buf.varispeed.speed = speed;
 
   for (int i = 0; i < size; i += nchan) {
     for (int k = 0; k < nelem(engine); k++)
@@ -93,3 +92,5 @@ void buf_setmode(int mode) {
     buf.varispeed.read_frac = 0;
   }
 }
+
+void buf_setspeed(float speed) { buf.varispeed.speed = speed; }

@@ -22,7 +22,8 @@ enum { midichannel = 16 }; /* Hard-code MIDI channel, 1-based */
 static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           AudioHandle::InterleavingOutputBuffer out,
                           size_t size) {
-  buf_callback(in, out, size, speed);
+  buf_setspeed(speed);
+  buf_callback(in, out, size);
 }
 
 #define NUMNOTES 128
