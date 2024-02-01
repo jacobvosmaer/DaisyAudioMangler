@@ -1,4 +1,7 @@
 #include "audio.h"
+
+#include <math.h>
+#include <stddef.h>
 #include <string.h>
 
 #define nchan 2
