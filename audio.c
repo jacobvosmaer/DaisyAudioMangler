@@ -8,7 +8,7 @@
 #define nelem(x) (sizeof(x) / sizeof(*(x)))
 
 struct buf {
-  float *start, *end, *write, *read, crossfade;
+  float *start, *end, *write, crossfade;
   int dir, mode, oldmode;
   struct {
     float *read;
