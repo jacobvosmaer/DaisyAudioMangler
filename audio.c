@@ -5,11 +5,14 @@
 #include <string.h>
 
 #define nchan 2
+#define nelem(x) (sizeof(x) / sizeof(*(x)))
 
 struct buf {
-  float *start, *end, *write, *read, read_frac;
+  float *start, *end, *write, *read;
   int dir, mode;
-  float knob1, knob2;
+  struct {
+    float *read;
+  } passthrough;
   struct {
     float *read, read_frac, speed;
   } varispeed;
@@ -19,8 +22,7 @@ void buf_init(float *buffer, int size) {
   buf.start = buffer;
   buf.end = buffer + size;
   buf.write = buf.start;
-  buf.read = buf.start;
-  buf.read_frac = 0;
+  buf.passthrough.read = buf.start;
   buf.varispeed.read = buf.start;
   buf.varispeed.read_frac = 0;
   buf.dir = 1;
@@ -59,30 +61,26 @@ void updatevarispeed(float *out) {
 
 void updatepassthrough(float *out) {
   for (int j = 0; j < nchan; j++)
-    out[j] = *buf_add(&buf.read, 1);
+    out[j] = *buf_add(&buf.passthrough.read, 1);
 }
 
 void updatemute(float *out) { out[0] = out[1] = 0; }
 
+/* This array must match enum order */
+void (*engine[BUF_NMODES])(float *) = {updatepassthrough, updatevarispeed,
+                                       updatemute};
+
 void buf_callback(const float *in, float *out, int size, float speed) {
-  //  float frames[BUF_NMODES][nchan];
+  float frames[BUF_NMODES][nchan];
 
   for (int i = 0; i < size; i++)
     *buf_add(&buf.write, 1) = in[i];
   buf.varispeed.speed = speed;
 
-  if (buf.mode == BUF_VARISPEED) {
-    for (int i = 0; i < size; i += nchan) {
-      updatevarispeed(out + i);
-    }
-  } else if (buf.mode == BUF_PASSTHROUGH) {
-    for (int i = 0; i < size; i += nchan) {
-      updatepassthrough(out + i);
-    }
-  } else if (buf.mode == BUF_MUTE) {
-    for (int i = 0; i < size; i += nchan) {
-      updatemute(out + i);
-    }
+  for (int i = 0; i < size; i += nchan) {
+    for (int k = 0; k < nelem(engine); k++)
+      engine[k](frames[k]);
+    memmove(out + i, frames[buf.mode], sizeof(frames[0]));
   }
 }
 
@@ -90,10 +88,8 @@ void buf_setdirection(int dir) { buf.dir = dir; }
 
 void buf_setmode(int mode) {
   buf.mode = mode;
-  if (mode == BUF_PASSTHROUGH) {
-    /* We are returning to normal playback but buf.read is possibly
-     * desynchronized from buf.write. */
-    buf.read = buf.write;
-    buf.read_frac = 0;
+  if (mode == BUF_VARISPEED) {
+    buf.varispeed.read = buf.write;
+    buf.varispeed.read_frac = 0;
   }
 }
