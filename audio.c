@@ -64,7 +64,10 @@ void updatepassthrough(float *out) {
     out[j] = *buf_add(&buf.passthrough.read, 1);
 }
 
-void updatemute(float *out) { out[0] = out[1] = 0; }
+void updatemute(float *out) {
+  for (int j = 0; j < nchan; j++)
+    out[j] = 0;
+}
 
 /* This array must match enum order */
 void (*engine[BUF_NMODES])(float *) = {updatepassthrough, updatevarispeed,
