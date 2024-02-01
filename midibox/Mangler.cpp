@@ -22,7 +22,7 @@ enum { midichannel = 16 }; /* Hard-code MIDI channel, 1-based */
 static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           AudioHandle::InterleavingOutputBuffer out,
                           size_t size) {
-  buf_callback(in, out, size, speed, 0);
+  buf_callback(in, out, size, speed);
 }
 
 #define NUMNOTES 128
@@ -61,14 +61,14 @@ void note_on(uint8_t key) {
   switch (key % 3) {
   case 0:
     buf_setdirection(1);
-    buf_setmode(BUF_VARISPEED, 0);
+    buf_setmode(BUF_VARISPEED);
     break;
   case 1:
     buf_setdirection(-1);
-    buf_setmode(BUF_VARISPEED, 0);
+    buf_setmode(BUF_VARISPEED);
     break;
   case 2:
-    buf_setmode(BUF_MUTE, 0);
+    buf_setmode(BUF_MUTE);
     break;
   }
 }
@@ -79,7 +79,7 @@ void note_off(uint8_t key) {
   if (notes.len)
     note_on(popnote());
   else
-    buf_setmode(BUF_PASSTHROUGH, 0);
+    buf_setmode(BUF_PASSTHROUGH);
 }
 
 void control_change(int cc, int val) {
@@ -116,7 +116,7 @@ void midicallback(uint8_t *uartdata, size_t size, void *context) {
 
 int main(void) {
   hw.Init();
-  buf_init(buffer, nelem(buffer), hw.AudioSampleRate());
+  buf_init(buffer, nelem(buffer));
   midi.Init(MidiUartTransport::Config());
   midi.StartRx(midicallback, 0);
   hw.SetAudioSampleRate(SaiHandle::Config::SampleRate::SAI_96KHZ);
