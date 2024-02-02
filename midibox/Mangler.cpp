@@ -17,11 +17,15 @@ float DSY_SDRAM_BSS
     buffer[(1 << 26) / sizeof(float)]; /* Use all 64MB of sample RAM */
 
 float speed = 1.0;
+int direction = 1;
+int mode = 0;
 enum { midichannel = 16 }; /* Hard-code MIDI channel, 1-based */
 
 static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           AudioHandle::InterleavingOutputBuffer out,
                           size_t size) {
+  buf_setmode(mode);
+  buf_setdirection(direction);
   buf_setspeed(speed);
   buf_callback(in, out, size);
 }
@@ -61,15 +65,15 @@ void note_on(uint8_t key) {
   pushnote(key);
   switch (key % 3) {
   case 0:
-    buf_setdirection(1);
-    buf_setmode(BUF_VARISPEED);
+    direction = 1;
+    mode = BUF_VARISPEED;
     break;
   case 1:
-    buf_setdirection(-1);
-    buf_setmode(BUF_VARISPEED);
+    direction = -1;
+    mode = BUF_VARISPEED;
     break;
   case 2:
-    buf_setmode(BUF_MUTE);
+    mode = BUF_MUTE;
     break;
   }
 }
@@ -80,7 +84,7 @@ void note_off(uint8_t key) {
   if (notes.len)
     note_on(popnote());
   else
-    buf_setmode(BUF_PASSTHROUGH);
+    mode = BUF_PASSTHROUGH;
 }
 
 void control_change(int cc, int val) {
