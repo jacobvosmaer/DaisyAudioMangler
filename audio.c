@@ -10,10 +10,10 @@
 struct buf {
   float *start, *end, *write, crossfade;
   int mode, oldmode;
-  struct {
+  struct passthrough {
     float *read;
   } passthrough;
-  struct {
+  struct varispeed {
     float *read, read_frac, speed;
     int dir;
   } varispeed;
@@ -37,15 +37,14 @@ float *buf_add(float **p, ptrdiff_t n) {
 float interpolate(float f, float x, float y) { return f * x + (1.0 - f) * y; }
 
 void updatevarispeed(float *out) {
-  buf_add(&buf.varispeed.read,
-          nchan * buf.varispeed.dir * (int)floorf(buf.varispeed.read_frac));
-  buf.varispeed.read_frac -= floorf(buf.varispeed.read_frac);
+  struct varispeed *vs = &buf.varispeed;
+  buf_add(&vs->read, nchan * vs->dir * (int)floorf(vs->read_frac));
+  vs->read_frac -= floorf(vs->read_frac);
   for (int j = 0; j < nchan; j++)
     out[j] = interpolate(
-        buf.varispeed.read_frac, buf.varispeed.read[j],
-        buf_wrap(buf.varispeed.read -
-                 buf.varispeed.dir * nchan)[j]); /* minus sounds better ?? */
-  buf.varispeed.read_frac += buf.varispeed.speed;
+        vs->read_frac, vs->read[j],
+        buf_wrap(vs->read - vs->dir * nchan)[j]); /* minus sounds better ?? */
+  vs->read_frac += vs->speed;
 }
 
 void resetvarispeed(void) {
