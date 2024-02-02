@@ -61,13 +61,14 @@ uint8_t popnote(void) {
 
 void note_on(uint8_t key) {
   enum { modulo = 3 };
-  struct params {
+  struct {
     int mode, direction;
   } paramtab[modulo] = {{BUF_VARISPEED, 1}, {BUF_VARISPEED, -1}, {BUF_MUTE, 0}},
-    *p = &paramtab[key % modulo];
+    *p;
   assert(key < NUMNOTES);
   delnote(key);
   pushnote(key);
+  p = &paramtab[key % modulo];
   mode = p->mode;
   if (mode == BUF_VARISPEED)
     direction = p->direction;
