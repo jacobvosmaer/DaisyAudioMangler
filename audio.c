@@ -18,18 +18,6 @@ struct buf {
   } varispeed;
 } buf;
 
-void buf_init(float *buffer, int size) {
-  buf.start = buffer;
-  buf.end = buffer + size;
-  buf.write = buf.start;
-  buf.passthrough.read = buf.start;
-  buf.varispeed.read = buf.start;
-  buf.varispeed.read_frac = 0;
-  buf.dir = 1;
-
-  memset(buffer, 0, size * sizeof(*buffer));
-}
-
 float *buf_wrap(float *p) {
   ptrdiff_t buf_size = buf.end - buf.start;
   if (p < buf.start)
@@ -59,6 +47,13 @@ void updatevarispeed(float *out) {
   buf.varispeed.read_frac += buf.varispeed.speed;
 }
 
+void resetvarispeed(void) {
+  buf.varispeed.read = buf.write;
+  buf.varispeed.read_frac = 0;
+}
+
+void resetpassthrough(void) { buf.passthrough.read = buf.write; }
+
 void updatepassthrough(float *out) {
   for (int j = 0; j < nchan; j++)
     out[j] = *buf_add(&buf.passthrough.read, 1);
@@ -69,9 +64,28 @@ void updatemute(float *out) {
     out[j] = 0;
 }
 
+void resetmute(void) {}
+
 /* This array must match enum order */
-void (*engine[BUF_NMODES])(float *) = {updatepassthrough, updatevarispeed,
-                                       updatemute};
+struct {
+  void (*reset)(void);
+  void (*update)(float *);
+} engines[] = {
+    {resetpassthrough, updatepassthrough},
+    {resetvarispeed, updatevarispeed},
+    {resetmute, updatemute},
+};
+
+void buf_init(float *buffer, int size) {
+  buf.start = buffer;
+  buf.end = buffer + size;
+  buf.write = buf.start;
+  buf.dir = 1;
+
+  for (int k = 0; k < nelem(engines); k++)
+    engines[k].reset();
+  memset(buffer, 0, size * sizeof(*buffer));
+}
 
 void buf_callback(const float *in, float *out, int size) {
   float frames[BUF_NMODES][nchan];
@@ -80,8 +94,8 @@ void buf_callback(const float *in, float *out, int size) {
     *buf_add(&buf.write, 1) = in[i];
 
   for (int i = 0; i < size; i += nchan) {
-    for (int k = 0; k < nelem(engine); k++)
-      engine[k](frames[k]);
+    for (int k = 0; k < nelem(engines); k++)
+      engines[k].update(frames[k]);
     for (int j = 0; j < nchan; j++)
       out[i + j] = interpolate(buf.crossfade, frames[buf.oldmode][j],
                                frames[buf.mode][j]);
@@ -100,10 +114,7 @@ void buf_setmode(int mode) {
   buf.oldmode = buf.mode;
   buf.mode = mode;
   buf.crossfade = 1.0;
-  if (mode == BUF_VARISPEED) {
-    buf.varispeed.read = buf.write;
-    buf.varispeed.read_frac = 0;
-  }
+  engines[buf.mode].reset();
 }
 
 void buf_setspeed(float speed) { buf.varispeed.speed = speed; }
