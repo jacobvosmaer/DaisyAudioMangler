@@ -88,7 +88,7 @@ void buf_init(float *buffer, int size) {
 }
 
 void buf_callback(const float *in, float *out, int size) {
-  float frames[BUF_NMODES][nchan];
+  float frames[nelem(engines)][nchan];
 
   for (int i = 0; i < size; i++)
     *buf_add(&buf.write, 1) = in[i];
@@ -108,7 +108,7 @@ void buf_callback(const float *in, float *out, int size) {
 void buf_setdirection(int dir) { buf.varispeed.dir = dir; }
 
 void buf_setmode(int mode) {
-  if (mode == buf.mode)
+  if (mode == buf.mode || mode < 0 || mode >= nelem(engines))
     return;
 
   buf.oldmode = buf.mode;
