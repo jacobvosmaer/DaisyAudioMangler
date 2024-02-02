@@ -9,12 +9,13 @@
 
 struct buf {
   float *start, *end, *write, crossfade;
-  int dir, mode, oldmode;
+  int mode, oldmode;
   struct {
     float *read;
   } passthrough;
   struct {
     float *read, read_frac, speed;
+    int dir;
   } varispeed;
 } buf;
 
@@ -37,19 +38,20 @@ float interpolate(float f, float x, float y) { return f * x + (1.0 - f) * y; }
 
 void updatevarispeed(float *out) {
   buf_add(&buf.varispeed.read,
-          nchan * buf.dir * (int)floorf(buf.varispeed.read_frac));
+          nchan * buf.varispeed.dir * (int)floorf(buf.varispeed.read_frac));
   buf.varispeed.read_frac -= floorf(buf.varispeed.read_frac);
   for (int j = 0; j < nchan; j++)
-    out[j] =
-        interpolate(buf.varispeed.read_frac, buf.varispeed.read[j],
-                    buf_wrap(buf.varispeed.read -
-                             buf.dir * nchan)[j]); /* minus sounds better ?? */
+    out[j] = interpolate(
+        buf.varispeed.read_frac, buf.varispeed.read[j],
+        buf_wrap(buf.varispeed.read -
+                 buf.varispeed.dir * nchan)[j]); /* minus sounds better ?? */
   buf.varispeed.read_frac += buf.varispeed.speed;
 }
 
 void resetvarispeed(void) {
   buf.varispeed.read = buf.write;
   buf.varispeed.read_frac = 0;
+  buf.varispeed.dir = 1;
 }
 
 void resetpassthrough(void) { buf.passthrough.read = buf.write; }
@@ -80,7 +82,6 @@ void buf_init(float *buffer, int size) {
   buf.start = buffer;
   buf.end = buffer + size;
   buf.write = buf.start;
-  buf.dir = 1;
 
   for (int k = 0; k < nelem(engines); k++)
     engines[k].reset();
@@ -105,7 +106,7 @@ void buf_callback(const float *in, float *out, int size) {
   }
 }
 
-void buf_setdirection(int dir) { buf.dir = dir; }
+void buf_setdirection(int dir) { buf.varispeed.dir = dir; }
 
 void buf_setmode(int mode) {
   if (mode == buf.mode)
