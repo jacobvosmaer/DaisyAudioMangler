@@ -117,11 +117,11 @@ void midicallback(uint8_t *uartdata, size_t size, void *context) {
 
 int main(void) {
   hw.Init();
-  buf_init(buffer, nelem(buffer));
+  hw.SetAudioSampleRate(SaiHandle::Config::SampleRate::SAI_96KHZ);
+  buf_init(buffer, nelem(buffer), hw.AudioSampleRate());
+  hw.StartAudio(AudioCallback);
   midi.Init(MidiUartTransport::Config());
   midi.StartRx(midicallback, 0);
-  hw.SetAudioSampleRate(SaiHandle::Config::SampleRate::SAI_96KHZ);
-  hw.StartAudio(AudioCallback);
 
   while (1)
     ;

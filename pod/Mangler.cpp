@@ -36,8 +36,8 @@ static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
 
 int main(void) {
   hw.Init();
-  buf_init(buffer, nelem(buffer));
   hw.SetAudioSampleRate(SaiHandle::Config::SampleRate::SAI_96KHZ);
+  buf_init(buffer, nelem(buffer), hw.AudioSampleRate());
   hw.StartAdc();
   hw.StartAudio(AudioCallback);
 
