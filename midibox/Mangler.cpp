@@ -39,14 +39,11 @@ struct {
 void delnote(uint8_t n) {
   assert(notes.len >= 0 && notes.len <= nelem(notes.q));
   uint8_t *p = notes.q;
-  while (p < notes.q + notes.len) {
-    if (*p == n) {
-      memmove(p, p + 1, notes.q + notes.len - (p + 1));
-      notes.len--;
-    } else {
+  while (p < notes.q + notes.len)
+    if (*p == n)
+      memmove(p, p + 1, notes.q + notes.len-- - (p + 1));
+    else
       p++;
-    }
-  }
 }
 
 void pushnote(uint8_t n) {
@@ -60,15 +57,13 @@ uint8_t popnote(void) {
 }
 
 void note_on(uint8_t key) {
-  enum { modulo = 3 };
   struct {
     int mode, direction;
-  } paramtab[modulo] = {{BUF_VARISPEED, 1}, {BUF_VARISPEED, -1}, {BUF_MUTE, 0}},
-    *p;
+  } * p, paramtab[] = {{BUF_VARISPEED, 1}, {BUF_VARISPEED, -1}, {BUF_MUTE, 0}};
   assert(key < NUMNOTES);
   delnote(key);
   pushnote(key);
-  p = &paramtab[key % modulo];
+  p = &paramtab[key % nelem(paramtab)];
   mode = p->mode;
   if (mode == BUF_VARISPEED)
     direction = p->direction;
