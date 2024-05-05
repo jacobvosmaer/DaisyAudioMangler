@@ -17,6 +17,11 @@ struct buf {
     float *read, read_frac, speed;
     int dir;
   } varispeed;
+  struct stop {
+    float speed;
+    int n, step;
+    struct varispeed vs;
+  } stop;
 } buf;
 
 float *buf_wrap(float *p) {
@@ -36,8 +41,7 @@ float *buf_add(float **p, ptrdiff_t n) {
 
 float interpolate(float f, float x, float y) { return f * x + (1.0 - f) * y; }
 
-void updatevarispeed(float *out) {
-  struct varispeed *vs = &buf.varispeed;
+void updatevarispeed2(float *out, struct varispeed *vs) {
   buf_add(&vs->read, nchan * vs->dir * (int)floorf(vs->read_frac));
   vs->read_frac -= floorf(vs->read_frac);
   for (int j = 0; j < nchan; j++)
@@ -47,11 +51,16 @@ void updatevarispeed(float *out) {
   vs->read_frac += vs->speed;
 }
 
-void resetvarispeed(void) {
-  buf.varispeed.read = buf.write;
-  buf.varispeed.read_frac = 0;
-  buf.varispeed.dir = 1;
+void updatevarispeed(float *out) { updatevarispeed2(out, &buf.varispeed); }
+
+void resetvarispeed2(struct varispeed *vs) {
+  vs->read = buf.write;
+  vs->read_frac = 0;
+  if (!vs->dir)
+    vs->dir = 1;
 }
+
+void resetvarispeed(void) { resetvarispeed2(&buf.varispeed); }
 
 void resetpassthrough(void) { buf.passthrough.read = buf.write; }
 
@@ -67,6 +76,21 @@ void updatemute(float *out) {
 
 void resetmute(void) {}
 
+void resetstop(void) {
+  resetvarispeed2(&buf.stop.vs);
+  buf.stop.vs.speed = 1.0;
+  buf.stop.n = 0;
+}
+
+void updatestop(float *out) {
+  updatevarispeed2(out, &buf.stop.vs);
+  if (++buf.stop.n == buf.stop.step) {
+    buf.stop.n = 0;
+    buf.stop.vs.speed *= buf.stop.speed;
+    buf.stop.speed *= 0.999;
+  }
+}
+
 /* This array must match enum order */
 struct {
   void (*reset)(void);
@@ -75,6 +99,7 @@ struct {
     {resetpassthrough, updatepassthrough},
     {resetvarispeed, updatevarispeed},
     {resetmute, updatemute},
+    {resetstop, updatestop},
 };
 
 void buf_init(float *buffer, int size, float samplerate) {
@@ -82,6 +107,7 @@ void buf_init(float *buffer, int size, float samplerate) {
   buf.end = buffer + size;
   buf.write = buf.start;
   buf.crossfadestep = 1.0 / (0.03 * samplerate); /* 30ms crossfade */
+  buf.stop.step = 0.001 * samplerate;
 
   for (int k = 0; k < nelem(engines); k++)
     engines[k].reset();
@@ -118,4 +144,8 @@ void buf_setmode(int mode) {
   engines[buf.mode].reset();
 }
 
-void buf_setspeed(float speed) { buf.varispeed.speed = speed; }
+void buf_setspeed(float speed) {
+  buf.varispeed.speed = speed;
+  float stoprange = 0.02;
+  buf.stop.speed = 0.999 - stoprange + stoprange * speed;
+}
