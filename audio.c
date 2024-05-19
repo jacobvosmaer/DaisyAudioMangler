@@ -24,6 +24,10 @@ struct buf {
     int n, step;
     struct varispeed vs;
   } stop;
+  struct sample {
+    float *start, *end;
+    struct varispeed vs;
+  } sample;
 } buf;
 
 float *buf_wrap(float *p) {
@@ -93,7 +97,22 @@ void updatestop(frame out) {
   }
 }
 
-/* This array must match enum order */
+void resetsample(void) {
+  resetvarispeed2(&buf.sample.vs);
+  buf.sample.vs.read = buf.sample.start;
+}
+
+void updatesample(frame out) {
+  struct varispeed *vs = &buf.sample.vs;
+  float *start = buf.sample.start, *end = buf.sample.end, *read = vs->read;
+  if ((start < end && read >= start && read < end) ||
+      (end < start && (read >= start || read < end)))
+    updatevarispeed2(out, vs);
+  else
+    updatemute(out);
+}
+
+/* This array must match enum buf_mode order */
 struct {
   void (*reset)(void);
   void (*update)(frame);
@@ -102,6 +121,7 @@ struct {
     {resetvarispeed, updatevarispeed},
     {resetmute, updatemute},
     {resetstop, updatestop},
+    {resetsample, updatesample},
 };
 
 void buf_init(float *buffer, int size, float samplerate) {
@@ -110,6 +130,7 @@ void buf_init(float *buffer, int size, float samplerate) {
   buf.write = buf.start;
   buf.crossfadestep = 1.0 / (0.03 * samplerate); /* 30ms crossfade */
   buf.stop.step = 0.001 * samplerate;
+  buf.sample.start = buf.sample.end = buf.write;
 
   for (int k = 0; k < nelem(engines); k++)
     engines[k].reset();
@@ -136,7 +157,7 @@ void buf_callback(const float *in, float *out, int size) {
 
 void buf_setdirection(int dir) { buf.varispeed.dir = dir; }
 
-void buf_setmode(int mode) {
+void buf_setmode(enum buf_mode mode) {
   if (mode == buf.mode || mode < 0 || mode >= nelem(engines))
     return;
 
@@ -150,4 +171,39 @@ void buf_setspeed(float speed) {
   buf.varispeed.speed = speed;
   float stoprange = 0.02;
   buf.stop.speed = 0.999 - stoprange + stoprange * speed;
+}
+
+int framesign(float f) {
+  float epsilon = 0.0001;
+  if (f > -epsilon && f < epsilon)
+    return 0;
+  else if (f > 0)
+    return 1;
+  else
+    return -1;
+}
+
+float *zero_crossing(void) {
+  float *f = buf.write;
+  int oldsign, sign = framesign(*f);
+  if (!sign)
+    return f;
+
+  oldsign = sign;
+  while (sign == oldsign) {
+    buf_add(&f, -nchan);
+    sign = framesign(*f);
+  }
+
+  return f;
+}
+
+void buf_sample_start(void) { buf.sample.start = zero_crossing(); }
+void buf_sample_stop(void) { buf.sample.end = zero_crossing(); }
+void buf_sample_trigger(float speed) {
+  buf.sample.vs.speed = speed;
+  if (buf.mode == BUF_SAMPLEPLAY)
+    buf.mode = BUF_MUTE;
+  buf_setmode(BUF_SAMPLEPLAY);
+  buf.crossfade = 0;
 }

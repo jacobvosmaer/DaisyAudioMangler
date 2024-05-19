@@ -16,14 +16,20 @@ MidiUartTransport midi;
 float DSY_SDRAM_BSS
     buffer[(1 << 26) / sizeof(float)]; /* Use all 64MB of sample RAM */
 
-float speed = 1.0;
-int direction = 1;
-int mode = 0;
+float speed = 1.0, samplespeed;
+int direction = 1, sampletrigger = 0;
+enum buf_mode mode = BUF_PASSTHROUGH;
 enum { midichannel = 16 }; /* Hard-code MIDI channel, 1-based */
 
 static void AudioCallback(AudioHandle::InterleavingInputBuffer in,
                           AudioHandle::InterleavingOutputBuffer out,
                           size_t size) {
+  if (sampletrigger) {
+    sampletrigger = 0;
+    mode = BUF_SAMPLEPLAY;
+    buf_sample_trigger(samplespeed);
+  }
+
   buf_setmode(mode);
   buf_setdirection(direction);
   buf_setspeed(speed);
@@ -58,22 +64,42 @@ uint8_t popnote(void) {
 
 void note_on(uint8_t key) {
   struct {
-    int mode, direction;
+    enum buf_mode mode;
+    int direction;
   } * p, paramtab[] = {{BUF_VARISPEED, 1},
                        {BUF_VARISPEED, -1},
                        {BUF_MUTE, 0},
                        {BUF_STOP, 0}};
   assert(key < NUMNOTES);
+
+  if (!key) {
+    buf_sample_start();
+    return;
+  }
+
   delnote(key);
   pushnote(key);
-  p = &paramtab[key % nelem(paramtab)];
-  mode = p->mode;
-  if (mode == BUF_VARISPEED)
-    direction = p->direction;
+
+  if (key >= 12 && key <= 48) {
+    float semitone = 1.059463094;
+    samplespeed = powf(semitone, (int)key - 36);
+    sampletrigger = 1;
+  } else if (key >= 60) {
+    p = &paramtab[key % nelem(paramtab)];
+    mode = p->mode;
+    if (mode == BUF_VARISPEED)
+      direction = p->direction;
+  }
 }
 
 void note_off(uint8_t key) {
   assert(key < NUMNOTES);
+
+  if (!key) {
+    buf_sample_stop();
+    return;
+  }
+
   delnote(key);
   if (notes.len)
     note_on(popnote());
