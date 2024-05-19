@@ -7,6 +7,8 @@
 #define nchan 2
 #define nelem(x) (sizeof(x) / sizeof(*(x)))
 
+typedef float frame[nchan];
+
 struct buf {
   float *start, *end, *write, crossfade, crossfadestep;
   int mode, oldmode;
@@ -41,7 +43,7 @@ float *buf_add(float **p, ptrdiff_t n) {
 
 float interpolate(float f, float x, float y) { return f * x + (1.0 - f) * y; }
 
-void updatevarispeed2(float *out, struct varispeed *vs) {
+void updatevarispeed2(frame out, struct varispeed *vs) {
   buf_add(&vs->read, nchan * vs->dir * (int)floorf(vs->read_frac));
   vs->read_frac -= floorf(vs->read_frac);
   for (int j = 0; j < nchan; j++)
@@ -51,7 +53,7 @@ void updatevarispeed2(float *out, struct varispeed *vs) {
   vs->read_frac += vs->speed;
 }
 
-void updatevarispeed(float *out) { updatevarispeed2(out, &buf.varispeed); }
+void updatevarispeed(frame out) { updatevarispeed2(out, &buf.varispeed); }
 
 void resetvarispeed2(struct varispeed *vs) {
   vs->read = buf.write;
@@ -64,12 +66,12 @@ void resetvarispeed(void) { resetvarispeed2(&buf.varispeed); }
 
 void resetpassthrough(void) { buf.passthrough.read = buf.write; }
 
-void updatepassthrough(float *out) {
+void updatepassthrough(frame out) {
   for (int j = 0; j < nchan; j++)
     out[j] = *buf_add(&buf.passthrough.read, 1);
 }
 
-void updatemute(float *out) {
+void updatemute(frame out) {
   for (int j = 0; j < nchan; j++)
     out[j] = 0;
 }
@@ -82,7 +84,7 @@ void resetstop(void) {
   buf.stop.n = 0;
 }
 
-void updatestop(float *out) {
+void updatestop(frame out) {
   updatevarispeed2(out, &buf.stop.vs);
   if (++buf.stop.n == buf.stop.step) {
     buf.stop.n = 0;
@@ -94,7 +96,7 @@ void updatestop(float *out) {
 /* This array must match enum order */
 struct {
   void (*reset)(void);
-  void (*update)(float *);
+  void (*update)(frame);
 } engines[] = {
     {resetpassthrough, updatepassthrough},
     {resetvarispeed, updatevarispeed},
@@ -115,7 +117,7 @@ void buf_init(float *buffer, int size, float samplerate) {
 }
 
 void buf_callback(const float *in, float *out, int size) {
-  float frames[nelem(engines)][nchan];
+  frame frames[nelem(engines)];
 
   for (int i = 0; i < size; i++)
     *buf_add(&buf.write, 1) = in[i];
