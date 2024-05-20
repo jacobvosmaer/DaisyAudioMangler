@@ -50,17 +50,27 @@ float interpolate(float f, float x, float y) { return f * x + (1.0 - f) * y; }
 void updatevarispeed2(frame out, struct varispeed *vs) {
   buf_add(&vs->read, nchan * vs->dir * (int)floorf(vs->read_frac));
   vs->read_frac -= floorf(vs->read_frac);
-  for (int j = 0; j < nchan; j++)
-    out[j] = interpolate(
-        vs->read_frac, vs->read[j],
-        buf_wrap(vs->read - vs->dir * nchan)[j]); /* minus sounds better ?? */
+  for (int j = 0; j < nchan; j++) {
+    /* Cubic interpolation from PD tabread4~. We interpolate a sample in between
+     * b and c. We need a and d to approximate the derivative of the waveform at
+     * b and c. (I think that is what is happening.) */
+    float *read = buf_wrap(vs->read + j), a = *buf_wrap(read - nchan),
+          b = *read, c = *buf_wrap(read + nchan),
+          d = *buf_wrap(read + 2 * nchan), cminusb = c - b;
+    out[j] = b + vs->read_frac *
+                     (cminusb - 0.1666667f * (1.0f - vs->read_frac) *
+                                    ((d - a - 3.0f * cminusb) * vs->read_frac +
+                                     (d + 2.0f * a - 3.0f * b)));
+  }
   vs->read_frac += vs->speed;
 }
 
 void updatevarispeed(frame out) { updatevarispeed2(out, &buf.varispeed); }
 
+float *read_init(void) { return buf_wrap(buf.write - nchan); }
+
 void resetvarispeed2(struct varispeed *vs) {
-  vs->read = buf.write;
+  vs->read = read_init();
   vs->read_frac = 0;
   if (!vs->dir)
     vs->dir = 1;
@@ -68,7 +78,7 @@ void resetvarispeed2(struct varispeed *vs) {
 
 void resetvarispeed(void) { resetvarispeed2(&buf.varispeed); }
 
-void resetpassthrough(void) { buf.passthrough.read = buf.write; }
+void resetpassthrough(void) { buf.passthrough.read = read_init(); }
 
 void updatepassthrough(frame out) {
   for (int j = 0; j < nchan; j++)
