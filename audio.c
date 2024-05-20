@@ -173,7 +173,7 @@ void buf_setspeed(float speed) {
   buf.stop.speed = 0.999 - stoprange + stoprange * speed;
 }
 
-int framesign(float f) {
+int signf(float f) {
   float epsilon = 0.0001;
   if (f > -epsilon && f < epsilon)
     return 0;
@@ -185,14 +185,14 @@ int framesign(float f) {
 
 float *zero_crossing(void) {
   float *f = buf.write;
-  int oldsign, sign = framesign(*f);
+  int oldsign, sign = signf(*f);
   if (!sign)
     return f;
 
   oldsign = sign;
   while (sign == oldsign) {
     buf_add(&f, -nchan);
-    sign = framesign(*f);
+    sign = signf(*f);
   }
 
   return f;
